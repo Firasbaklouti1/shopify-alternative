@@ -1,0 +1,106 @@
+### ==================================================
+### SUBSCRIPTION MODULE TEST SCENARIOS
+### ==================================================
+@host = http://localhost:8080
+
+### SETUP: Register & Login (Required if running standalone)
+# @name setup_register
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "SubStore-{{$random.uuid}}",
+  "storeSlug": "sub-store-{{$random.uuid}}",
+  "email": "sub-merchant-{{$random.uuid}}@test.com",
+  "password": "Admin123!",
+  "fullName": "Sub Merchant"
+}
+
+> {% client.global.set("sub_email", response.body.ownerEmail || response.body.email); %}
+
+###
+
+# @name setup_login
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{sub_email}}",
+  "password": "Admin123!"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+###
+
+### 5.1 LIST PLANS
+GET {{host}}/api/v1/subscriptions/plans
+Authorization: Bearer {{token}}
+
+> {%
+    if (response.status === 200) {
+        // Capture the 'Pro' plan ID for testing subscription
+        var plans = response.body;
+        for (var i = 0; i < plans.length; i++) {
+            if (plans[i].slug === 'pro') {
+                client.global.set("proPlanId", plans[i].id);
+                break;
+            }
+        }
+    }
+%}
+
+###
+
+### 5.2 SUBSCRIBE TO PRO PLAN
+POST {{host}}/api/v1/subscriptions/subscribe
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "planId": {{proPlanId}}
+}
+
+> {%
+    client.test("Subscribe should succeed with 200", function() {
+        client.assert(response.status === 200, "Expected 200 for subscribe");
+        client.assert(response.body.plan.slug === 'pro', "Expected plan to be 'pro'");
+        client.assert(response.body.status === 'ACTIVE', "Expected status to be ACTIVE");
+    });
+%}
+
+###
+
+### 5.3 GET CURRENT SUBSCRIPTION
+GET {{host}}/api/v1/subscriptions/me
+Authorization: Bearer {{token}}
+
+> {%
+    client.test("Get subscription should return 'pro'", function() {
+        client.assert(response.body.plan.slug === 'pro', "Expected 'pro' plan");
+    });
+%}
+
+###
+
+### 5.4 CANCEL SUBSCRIPTION
+POST {{host}}/api/v1/subscriptions/cancel
+Authorization: Bearer {{token}}
+
+> {%
+    client.test("Cancel should succeed with 204", function() {
+        client.assert(response.status === 204, "Expected 204 for cancel");
+    });
+%}
+
+###
+
+### 5.5 VERIFY CANCELLATION (Auto-renew should be false)
+GET {{host}}/api/v1/subscriptions/me
+Authorization: Bearer {{token}}
+
+> {%
+    client.test("Auto-renew should be false", function() {
+        client.assert(response.body.autoRenew === false, "Expected autoRenew to be false");
+    });
+%}

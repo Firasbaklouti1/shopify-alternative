@@ -1,0 +1,122 @@
+### ==================================================
+### ORDER MODULE TEST SCENARIOS
+### ==================================================
+@host = http://localhost:8080
+
+### SETUP: Register, Login, Create Product (Required if running standalone)
+# @name setup_register
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "OrderStore-{{$random.uuid}}",
+  "storeSlug": "o-store-{{$random.uuid}}",
+  "email": "o-merchant-{{$random.uuid}}@test.com",
+  "password": "Admin123!",
+  "fullName": "Order Merchant"
+}
+
+> {% client.global.set("o_email", response.body.ownerEmail || response.body.email); %}
+
+###
+
+# @name setup_login
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{o_email}}",
+  "password": "Admin123!"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+###
+
+# @name setup_category
+POST {{host}}/api/v1/products/categories
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "OrderCat-{{$random.uuid}}",
+  "slug": "ocat-{{$random.uuid}}",
+  "description": "Category for Orders"
+}
+
+> {% client.global.set("catId", response.body.id); %}
+
+###
+
+# @name setup_product
+POST {{host}}/api/v1/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "OrderItem-{{$random.uuid}}",
+  "slug": "oitem-{{$random.uuid}}",
+  "description": "Item to be ordered",
+  "categoryId": {{catId}},
+  "variants": [
+    {
+      "name": "Variant1",
+      "sku": "SKU-ORDER-{{$random.uuid}}",
+      "price": 50.00,
+      "stockLevel": 100
+    }
+  ]
+}
+
+> {%
+    if (response.body.variants && response.body.variants.length > 0) {
+        client.global.set("variantSku", response.body.variants[0].sku);
+    }
+%}
+
+###
+
+# @name setup_customer (Need a customer context for cart? Logic might infer from user or need explicit customer session. 
+# In current impl, cart is linked to 'customerEmail' from token if merchant, or separate customer flow.
+# Assuming Merchant acts as user for testing simple flow, or we need to register a customer.
+# Let's verify: CartController uses `principal.getUsername()` (email). So Merchant can have a cart too.)
+
+### 4.1 ADD TO CART
+POST {{host}}/api/v1/orders/cart
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "sku": "{{variantSku}}",
+  "quantity": 2
+}
+
+> {%
+    client.test("Add to cart should succeed with 200", function() {
+        client.assert(response.status === 200, "Expected 200 for Add to Cart");
+    });
+%}
+
+###
+
+### 4.2 GET CART
+GET {{host}}/api/v1/orders/cart
+Authorization: Bearer {{token}}
+
+###
+
+### 4.3 CHECKOUT
+POST {{host}}/api/v1/orders/checkout
+Authorization: Bearer {{token}}
+
+> {%
+    client.test("Checkout should succeed with 200", function() {
+        client.assert(response.status === 200, "Expected 200 for Checkout");
+    });
+%}
+
+###
+
+### 4.4 LIST ORDERS
+GET {{host}}/api/v1/orders
+Authorization: Bearer {{token}}

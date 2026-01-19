@@ -1,0 +1,79 @@
+### ==================================================
+### BILLING & SUBSCRIPTION TEST SCENARIOS
+### ==================================================
+@host = http://localhost:8080
+
+### 1. REGISTER MERCHANT
+# @name register
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "BillingStore-{{$random.uuid}}",
+  "storeSlug": "billing-{{$random.uuid}}",
+  "email": "billing-{{$random.uuid}}@test.com",
+  "password": "Admin123!",
+  "fullName": "Billing User"
+}
+
+> {% client.global.set("billing_email", response.body.ownerEmail || response.body.email); %}
+
+### 2. LOGIN
+# @name login
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{billing_email}}",
+  "password": "Admin123!"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+### 3. GET PLANS (Find a Paid Plan)
+GET {{host}}/api/v1/subscriptions/plans
+Authorization: Bearer {{token}}
+
+> {%
+    var plans = response.body;
+    for (var i = 0; i < plans.length; i++) {
+        if (plans[i].price > 0) {
+            client.global.set("paidPlanId", plans[i].id);
+            client.log("Found Paid Plan ID: " + plans[i].id);
+            break;
+        }
+    }
+%}
+
+### 4. SUCCESSFUL SUBSCRIPTION (MOCK)
+POST {{host}}/api/v1/subscriptions/subscribe
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "planId": {{paidPlanId}},
+  "paymentMethod": "MOCK"
+}
+
+> {%
+    client.test("Subscription with MOCK payment should succeed", function() {
+        client.assert(response.status === 200, "Expected 200 OK");
+        client.assert(response.body.status === 'ACTIVE', "Subscription should be ACTIVE");
+    });
+%}
+
+### 5. UNSUPPORTED PAYMENT METHOD (Should Fail)
+POST {{host}}/api/v1/subscriptions/subscribe
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "planId": {{paidPlanId}},
+  "paymentMethod": "INVALID_METHOD"
+}
+
+> {%
+    client.test("Invalid payment method should fail", function() {
+        client.assert(response.status === 500, "Expected 500 (or handled 400) for invalid method");
+    });
+%}

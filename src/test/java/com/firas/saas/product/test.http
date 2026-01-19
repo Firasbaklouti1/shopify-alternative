@@ -1,0 +1,131 @@
+### ==================================================
+### PRODUCT MODULE TEST SCENARIOS
+### ==================================================
+@host = http://localhost:8080
+
+### SETUP: Register & Login (Required if running standalone)
+# @name setup_register
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "ProductStore-{{$random.uuid}}",
+  "storeSlug": "p-store-{{$random.uuid}}",
+  "email": "p-merchant-{{$random.uuid}}@test.com",
+  "password": "Admin123!",
+  "fullName": "Product Merchant"
+}
+
+> {% client.global.set("p_email", response.body.ownerEmail || response.body.email); %}
+
+###
+
+# @name setup_login
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{p_email}}",
+  "password": "Admin123!"
+}
+
+> {% client.global.set("token", response.body.token); %}
+
+###
+
+### 2.1 CREATE CATEGORY
+# @name createCategory
+POST {{host}}/api/v1/products/categories
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Electronics-{{$random.uuid}}",
+  "slug": "elec-{{$random.uuid}}",
+  "description": "Gadgets and more"
+}
+
+> {%
+    if (response.status === 201 || response.status === 200) {
+        client.global.set("categoryId", response.body.id);
+    }
+%}
+
+###
+
+### 2.2 CREATE PRODUCT
+# @name createProduct
+POST {{host}}/api/v1/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Phone-{{$random.uuid}}",
+  "slug": "phone-{{$random.uuid}}",
+  "description": "High-end smartphone",
+  "categoryId": {{categoryId}},
+  "variants": [
+    {
+      "name": "Default Variant",
+      "sku": "SKU-{{$random.uuid}}",
+      "price": 999.99,
+      "stockLevel": 50
+    }
+  ]
+}
+
+> {%
+    if (response.status === 201 || response.status === 200) {
+        client.global.set("productId", response.body.id);
+    }
+%}
+
+###
+
+### 2.3 LIST PRODUCTS
+GET {{host}}/api/v1/products
+Authorization: Bearer {{token}}
+
+###
+
+### 2.4 UPDATE PRODUCT
+PUT {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Updated-Phone-{{$random.uuid}}",
+  "slug": "updated-phone-{{$random.uuid}}",
+  "description": "Updated Description",
+  "categoryId": {{categoryId}}
+}
+
+> {%
+    client.test("Update product should succeed with 200", function() {
+        client.assert(response.status === 200, "Expected 200 for PUT");
+    });
+%}
+
+###
+
+### 2.5 DELETE PRODUCT
+DELETE {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{token}}
+
+> {%
+    client.test("Delete product should succeed with 204", function() {
+        client.assert(response.status === 204, "Expected 204 for DELETE");
+    });
+%}
+
+###
+
+### 2.6 DELETE CATEGORY
+DELETE {{host}}/api/v1/products/categories/{{categoryId}}
+Authorization: Bearer {{token}}
+
+> {%
+    client.test("Delete category should succeed with 204", function() {
+        client.assert(response.status === 204, "Expected 204 for DELETE");
+    });
+%}

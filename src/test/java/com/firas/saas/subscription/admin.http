@@ -1,0 +1,99 @@
+### ==================================================
+### ADMIN MODULE TEST SCENARIOS
+### ==================================================
+@host = http://localhost:8080
+
+### 1. LOGIN AS ADMIN
+# @name adminLogin
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@saas.com",
+  "password": "Admin123!"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("adminToken", response.body.token || response.body.accessToken);
+        client.log("✓ SUCCESS: Admin Login successful");
+    }
+%}
+
+###
+
+### 2. CREATE NEW PLAN (DYNAMIC)
+# @name createPlan
+POST {{host}}/api/v1/subscriptions/plans
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Gold Premium-{{$random.uuid}}",
+  "slug": "gold-{{$random.uuid}}",
+  "price": 199.99,
+  "billingInterval": "YEARLY",
+  "features": "All features, 24/7 support"
+}
+
+> {%
+    client.test("Create plan should succeed with 200", function() {
+        client.assert(response.status === 200, "Expected 200 for create plan");
+        client.global.set("newPlanId", response.body.id);
+    });
+%}
+
+###
+
+### 3. UPDATE PLAN
+PUT {{host}}/api/v1/subscriptions/plans/{{newPlanId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Platinum Premium-{{$random.uuid}}",
+  "slug": "platinum-{{$random.uuid}}",
+  "price": 299.99,
+  "billingInterval": "YEARLY",
+  "features": "All features, Dedicated Manager"
+}
+
+> {%
+    client.test("Update plan should succeed with 200", function() {
+        client.assert(response.status === 200, "Expected 200 for update plan");
+        client.assert(response.body.price == 299.99, "Price updated");
+    });
+%}
+
+###
+
+### 4. DELETE PLAN
+DELETE {{host}}/api/v1/subscriptions/plans/{{newPlanId}}
+Authorization: Bearer {{adminToken}}
+
+> {%
+    client.test("Delete plan should succeed with 204", function() {
+        client.assert(response.status === 204, "Expected 204 for delete plan");
+    });
+%}
+
+###
+
+### 5. VERIFY DELETION (Should not appear in public list)
+GET {{host}}/api/v1/subscriptions/plans
+Authorization: Bearer {{adminToken}}
+
+> {%
+    client.test("Deleted plan should not be in list", function() {
+        var plans = response.body;
+        var found = false;
+        var idToCheck = client.global.get("newPlanId");
+        for (var i = 0; i < plans.length; i++) {
+            if (plans[i].id == idToCheck) {
+                found = true;
+                break;
+            }
+        }
+        client.assert(found === false, "Plan should be effectively deleted (inactive)");
+    });
+%}
