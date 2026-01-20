@@ -1,0 +1,493 @@
+### ==================================================
+### Discount Module API Tests
+### ==================================================
+### Token is obtained via login, not from env file
+
+@host = http://localhost:8080
+
+### ==================================================
+### 0. AUTHENTICATION SETUP
+### ==================================================
+### 0.0 Register Merchant
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "E2E Store {{$random.uuid}}",
+  "storeSlug": "e2e-store-{{$random.uuid}}",
+  "email": "merchant@example.com",
+  "password": "password123",
+  "fullName": "Merchant E2E"
+}
+
+> {%
+    client.global.set("merchantEmail", response.body.ownerEmail || response.body.email);
+    client.global.set("tenantId", response.body.id);
+%}
+### 0.1 Login as Merchant
+# @name merchantLogin
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "merchant@example.com",
+  "password": "password123"
+}
+
+> {%
+    client.global.set("merchantToken", response.body.token);
+    client.log("✓ Logged in as merchant");
+%}
+
+###
+
+### ==================================================
+### 1. CREATE DISCOUNTS
+### ==================================================
+
+### 1.1 CREATE PERCENTAGE DISCOUNT
+# @name createPercentageDiscount
+POST {{host}}/api/v1/discounts
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "SAVE20",
+  "description": "Save 20% on your order",
+  "type": "PERCENTAGE",
+  "value": 20,
+  "minOrderAmount": 50.00,
+  "maxDiscountAmount": 100.00,
+  "usageLimit": 1000,
+  "usageLimitPerCustomer": 2,
+  "expiresAt": "2026-12-31T23:59:59",
+  "active": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("percentageDiscountId", response.body.id);
+        client.log("✓ SUCCESS: Percentage discount created with ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 1.2 CREATE FIXED AMOUNT DISCOUNT
+# @name createFixedDiscount
+POST {{host}}/api/v1/discounts
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "FLAT10",
+  "description": "$10 off your order",
+  "type": "FIXED_AMOUNT",
+  "value": 10.00,
+  "minOrderAmount": 30.00,
+  "active": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("fixedDiscountId", response.body.id);
+        client.log("✓ SUCCESS: Fixed discount created with ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 1.3 CREATE LIMITED TIME DISCOUNT
+POST {{host}}/api/v1/discounts
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "FLASH50",
+  "description": "Flash Sale - 50% off!",
+  "type": "PERCENTAGE",
+  "value": 50,
+  "maxDiscountAmount": 200.00,
+  "usageLimit": 100,
+  "startsAt": "2026-01-01T00:00:00",
+  "expiresAt": "2026-01-31T23:59:59",
+  "active": true
+}
+
+###
+
+### 1.4 CREATE FREE SHIPPING DISCOUNT (using fixed amount)
+POST {{host}}/api/v1/discounts
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "FREESHIP",
+  "description": "Free shipping on orders over $75",
+  "type": "FIXED_AMOUNT",
+  "value": 9.99,
+  "minOrderAmount": 75.00,
+  "active": true
+}
+
+###
+
+### ==================================================
+### 2. GET DISCOUNTS
+### ==================================================
+
+### 2.1 GET ALL DISCOUNTS
+GET {{host}}/api/v1/discounts
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return list of discounts", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(Array.isArray(response.body), "Expected array");
+    });
+%}
+
+###
+
+### 2.2 GET ACTIVE DISCOUNTS ONLY
+GET {{host}}/api/v1/discounts/active
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return only active discounts", function() {
+        client.assert(response.status === 200, "Expected 200");
+        response.body.forEach(d => {
+            client.assert(d.active === true, "Expected active discount");
+        });
+    });
+%}
+
+###
+
+### 2.3 GET DISCOUNT BY ID
+GET {{host}}/api/v1/discounts/{{percentageDiscountId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return discount by ID", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.code === "SAVE20", "Expected SAVE20 code");
+    });
+%}
+
+###
+
+### 2.4 GET DISCOUNT BY CODE
+GET {{host}}/api/v1/discounts/code/SAVE20
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return discount by code", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.code === "SAVE20", "Expected SAVE20 code");
+    });
+%}
+
+###
+
+### ==================================================
+### 3. VALIDATE DISCOUNTS
+### ==================================================
+
+### 3.1 VALIDATE PERCENTAGE DISCOUNT (should succeed)
+POST {{host}}/api/v1/discounts/validate
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "SAVE20",
+  "orderTotal": 100.00,
+  "customerEmail": "customer@example.com"
+}
+
+> {%
+    client.test("Should validate discount successfully", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.applicable === true, "Expected applicable");
+        client.assert(response.body.discountAmount === 20.00, "Expected 20% discount = $20");
+        client.assert(response.body.finalTotal === 80.00, "Expected final total $80");
+    });
+%}
+
+###
+
+### 3.2 VALIDATE WITH MAX DISCOUNT CAP
+POST {{host}}/api/v1/discounts/validate
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "SAVE20",
+  "orderTotal": 600.00,
+  "customerEmail": "customer@example.com"
+}
+
+> {%
+    client.test("Should cap discount at maxDiscountAmount", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.applicable === true, "Expected applicable");
+        // 20% of 600 = 120, but max is 100
+        client.assert(response.body.discountAmount === 100.00, "Expected capped at $100");
+    });
+%}
+
+###
+
+### 3.3 VALIDATE FIXED DISCOUNT
+POST {{host}}/api/v1/discounts/validate
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "FLAT10",
+  "orderTotal": 50.00,
+  "customerEmail": "customer@example.com"
+}
+
+> {%
+    client.test("Should apply fixed discount", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.applicable === true, "Expected applicable");
+        client.assert(response.body.discountAmount === 10.00, "Expected $10 off");
+        client.assert(response.body.finalTotal === 40.00, "Expected final $40");
+    });
+%}
+
+###
+
+### 3.4 VALIDATE BELOW MINIMUM ORDER (should fail)
+POST {{host}}/api/v1/discounts/validate
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "SAVE20",
+  "orderTotal": 30.00,
+  "customerEmail": "customer@example.com"
+}
+
+> {%
+    client.test("Should reject below minimum order", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.applicable === false, "Expected not applicable");
+    });
+%}
+
+###
+
+### 3.5 VALIDATE INVALID CODE
+POST {{host}}/api/v1/discounts/validate
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "INVALIDCODE",
+  "orderTotal": 100.00
+}
+
+> {%
+    client.test("Should reject invalid code", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.applicable === false, "Expected not applicable");
+    });
+%}
+
+###
+
+### ==================================================
+### 4. UPDATE DISCOUNT
+### ==================================================
+
+### 4.1 UPDATE DISCOUNT VALUE
+PUT {{host}}/api/v1/discounts/{{percentageDiscountId}}
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "SAVE25",
+  "description": "Save 25% on your order - Updated!",
+  "type": "PERCENTAGE",
+  "value": 25,
+  "minOrderAmount": 50.00,
+  "maxDiscountAmount": 150.00,
+  "usageLimit": 1000,
+  "usageLimitPerCustomer": 2,
+  "expiresAt": "2026-12-31T23:59:59",
+  "active": true
+}
+
+> {%
+    client.test("Should update discount", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.code === "SAVE25", "Expected updated code");
+        client.assert(response.body.value === 25, "Expected updated value");
+    });
+%}
+
+###
+
+### ==================================================
+### 5. ACTIVATE/DEACTIVATE
+### ==================================================
+
+### 5.1 DEACTIVATE DISCOUNT
+PATCH {{host}}/api/v1/discounts/{{fixedDiscountId}}/deactivate
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should deactivate discount", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.active === false, "Expected inactive");
+    });
+%}
+
+###
+
+### 5.2 VALIDATE DEACTIVATED DISCOUNT (should fail)
+POST {{host}}/api/v1/discounts/validate
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "FLAT10",
+  "orderTotal": 50.00
+}
+
+> {%
+    client.test("Should reject inactive discount", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.applicable === false, "Expected not applicable");
+    });
+%}
+
+###
+
+### 5.3 REACTIVATE DISCOUNT
+PATCH {{host}}/api/v1/discounts/{{fixedDiscountId}}/activate
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should reactivate discount", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.active === true, "Expected active");
+    });
+%}
+
+###
+
+### ==================================================
+### 6. APPLY DISCOUNT TO ORDER
+### ==================================================
+
+### 6.1 APPLY DISCOUNT
+POST {{host}}/api/v1/discounts/apply/1
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "FLAT10",
+  "orderTotal": 50.00,
+  "customerEmail": "customer@example.com"
+}
+
+> {%
+    client.test("Should apply discount to order", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.applicable === true, "Expected applicable");
+    });
+%}
+
+###
+
+### 6.2 CHECK USAGE COUNT INCREASED
+GET {{host}}/api/v1/discounts/{{fixedDiscountId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should show increased usage", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.timesUsed >= 1, "Expected timesUsed >= 1");
+    });
+%}
+
+###
+
+### ==================================================
+### 7. AUTHORIZATION TESTS
+### ==================================================
+
+### 7.1 TRY WITHOUT TOKEN (should fail)
+GET {{host}}/api/v1/discounts
+
+> {%
+    client.test("Should fail without token", function() {
+        client.assert(response.status === 401 || response.status === 403,
+            "Expected 401/403 without token");
+    });
+%}
+
+###
+
+### ==================================================
+### 8. ERROR CASES
+### ==================================================
+
+### 8.1 CREATE DUPLICATE CODE (should fail)
+POST {{host}}/api/v1/discounts
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "SAVE25",
+  "type": "PERCENTAGE",
+  "value": 10
+}
+
+> {%
+    client.test("Duplicate code should fail", function() {
+        client.assert(response.status === 500 || response.status === 400,
+            "Expected error for duplicate code");
+    });
+%}
+
+###
+
+### 8.2 CREATE INVALID PERCENTAGE (>100)
+POST {{host}}/api/v1/discounts
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "code": "INVALID_PCT",
+  "type": "PERCENTAGE",
+  "value": 150
+}
+
+> {%
+    client.test("Invalid percentage should fail", function() {
+        client.assert(response.status === 500 || response.status === 400,
+            "Expected error for invalid percentage");
+    });
+%}
+
+###
+
+### ==================================================
+### 9. CLEANUP
+### ==================================================
+
+### 9.1 DELETE DISCOUNT
+DELETE {{host}}/api/v1/discounts/{{fixedDiscountId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should delete discount", function() {
+        client.assert(response.status === 204, "Expected 204 No Content");
+    });
+%}
+

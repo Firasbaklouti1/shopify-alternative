@@ -1,0 +1,445 @@
+### ==================================================
+### Webhook Module API Tests
+### ==================================================
+### Token is obtained via login, not from env file
+### Following the webhook specification with proper events
+
+@host = http://localhost:8080
+
+### ==================================================
+### 0. AUTHENTICATION SETUP
+### ==================================================
+### 0.0 Register Merchant
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "E2E Store {{$random.uuid}}",
+  "storeSlug": "e2e-store-{{$random.uuid}}",
+  "email": "merchant@example.com",
+  "password": "password123",
+  "fullName": "Merchant E2E"
+}
+
+> {%
+    client.global.set("merchantEmail", response.body.ownerEmail || response.body.email);
+    client.global.set("tenantId", response.body.id);
+%}
+### 0.1 Login as Merchant
+# @name merchantLogin
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "merchant@example.com",
+  "password": "password123"
+}
+
+> {%
+    client.global.set("merchantToken", response.body.token);
+    client.log("✓ Logged in as merchant");
+%}
+
+###
+
+### ==================================================
+### 1. GET AVAILABLE EVENTS
+### ==================================================
+
+### 1.1 LIST ALL AVAILABLE WEBHOOK EVENTS
+GET {{host}}/api/v1/webhooks/events
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return list of events", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(Array.isArray(response.body), "Expected array");
+        client.assert(response.body.includes("ORDER_CREATED"), "Expected ORDER_CREATED event");
+        client.assert(response.body.includes("PRODUCT_CREATED"), "Expected PRODUCT_CREATED event");
+        client.assert(response.body.includes("CUSTOMER_CREATED"), "Expected CUSTOMER_CREATED event");
+    });
+    client.log("Available events: " + response.body.length + " total");
+%}
+
+###
+
+### ==================================================
+### 2. CREATE WEBHOOKS
+### ==================================================
+
+### 2.1 CREATE ORDER WEBHOOK (HTTPS only per spec)
+# @name createOrderWebhook
+POST {{host}}/api/v1/webhooks
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Order Created Notifications",
+  "url": "https://webhook.site/test-order-webhook",
+  "event": "ORDER_CREATED",
+  "apiVersion": "v1",
+  "maxRetries": 5,
+  "active": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("orderWebhookId", response.body.id);
+        client.log("✓ SUCCESS: Order webhook created with ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 2.2 CREATE CUSTOMER WEBHOOK
+# @name createCustomerWebhook
+POST {{host}}/api/v1/webhooks
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "New Customer Notifications",
+  "url": "https://webhook.site/test-customer-webhook",
+  "event": "CUSTOMER_CREATED",
+  "maxRetries": 3,
+  "active": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("customerWebhookId", response.body.id);
+        client.log("✓ SUCCESS: Customer webhook created with ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 2.3 CREATE PAYMENT WEBHOOK WITH CUSTOM HEADERS
+POST {{host}}/api/v1/webhooks
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Payment Succeeded",
+  "url": "https://webhook.site/test-payment-webhook",
+  "event": "PAYMENT_SUCCEEDED",
+  "maxRetries": 5,
+  "headers": "{\"X-Custom-Header\": \"my-value\", \"X-API-Key\": \"secret123\"}",
+  "active": true
+}
+
+###
+
+### 2.4 CREATE INVENTORY LOW ALERT WEBHOOK
+POST {{host}}/api/v1/webhooks
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Low Inventory Alert",
+  "url": "https://webhook.site/test-inventory-webhook",
+  "event": "INVENTORY_LOW",
+  "maxRetries": 3,
+  "active": true
+}
+
+###
+
+### ==================================================
+### 3. GET WEBHOOKS
+### ==================================================
+
+### 3.1 GET ALL WEBHOOKS
+GET {{host}}/api/v1/webhooks
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return list of webhooks", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(Array.isArray(response.body), "Expected array");
+    });
+    client.log("Total webhooks: " + response.body.length);
+%}
+
+###
+
+### 3.2 GET WEBHOOK BY ID
+GET {{host}}/api/v1/webhooks/{{orderWebhookId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return webhook with stats", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.event === "ORDER_CREATED", "Expected ORDER_CREATED event");
+        client.assert(response.body.totalDeliveries !== undefined, "Expected totalDeliveries stat");
+        client.assert(response.body.successCount !== undefined, "Expected successCount stat");
+        client.assert(response.body.failureCount !== undefined, "Expected failureCount stat");
+    });
+%}
+
+###
+
+### ==================================================
+### 4. UPDATE WEBHOOK
+### ==================================================
+
+### 4.1 UPDATE WEBHOOK URL AND RETRIES
+PUT {{host}}/api/v1/webhooks/{{orderWebhookId}}
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Order Created Notifications - Updated",
+  "url": "https://webhook.site/updated-order-webhook",
+  "event": "ORDER_CREATED",
+  "apiVersion": "v1",
+  "maxRetries": 7,
+  "active": true
+}
+
+> {%
+    client.test("Should update webhook", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.name.includes("Updated"), "Expected updated name");
+        client.assert(response.body.maxRetries === 7, "Expected updated retry count");
+    });
+%}
+
+###
+
+### ==================================================
+### 5. PAUSE/RESUME
+### ==================================================
+
+### 5.1 PAUSE WEBHOOK
+PATCH {{host}}/api/v1/webhooks/{{customerWebhookId}}/pause
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should pause webhook", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.paused === true, "Expected paused = true");
+    });
+%}
+
+###
+
+### 5.2 RESUME WEBHOOK
+PATCH {{host}}/api/v1/webhooks/{{customerWebhookId}}/resume
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should resume webhook", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.paused === false, "Expected paused = false");
+    });
+%}
+
+###
+
+### ==================================================
+### 6. TEST WEBHOOK
+### ==================================================
+
+### 6.1 SEND TEST WEBHOOK
+POST {{host}}/api/v1/webhooks/{{orderWebhookId}}/test
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should send test webhook", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.eventId !== undefined, "Expected eventId in response");
+        client.assert(response.body.status !== undefined, "Expected status in response");
+        client.assert(response.body.eventId.startsWith("evt_test_"), "Expected test event ID prefix");
+    });
+    client.log("Test delivery status: " + response.body.status);
+    if (response.body.responseCode) {
+        client.log("Response code: " + response.body.responseCode);
+    }
+    client.global.set("testDeliveryId", response.body.id);
+%}
+
+###
+
+### ==================================================
+### 7. DELIVERY HISTORY
+### ==================================================
+
+### 7.1 GET DELIVERY HISTORY FOR WEBHOOK
+GET {{host}}/api/v1/webhooks/{{orderWebhookId}}/deliveries
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return delivery history", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(Array.isArray(response.body), "Expected array");
+    });
+    client.log("Total deliveries: " + response.body.length);
+%}
+
+###
+
+### 7.2 GET RECENT DELIVERIES (ALL WEBHOOKS)
+GET {{host}}/api/v1/webhooks/deliveries/recent
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return recent deliveries", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(Array.isArray(response.body), "Expected array");
+    });
+%}
+
+###
+
+### 7.3 GET DELIVERY BY ID
+GET {{host}}/api/v1/webhooks/deliveries/{{testDeliveryId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return delivery details", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.eventId !== undefined, "Expected eventId");
+        client.assert(response.body.webhookName !== undefined, "Expected webhookName");
+        client.assert(response.body.attemptNumber !== undefined, "Expected attemptNumber");
+    });
+%}
+
+###
+
+### ==================================================
+### 8. MANUAL RETRY
+### ==================================================
+
+### 8.1 RETRY FAILED DELIVERY (if test delivery failed)
+POST {{host}}/api/v1/webhooks/deliveries/{{testDeliveryId}}/retry
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    // This may succeed or fail depending on delivery status
+    client.log("Retry response status: " + response.status);
+    if (response.status === 200) {
+        client.log("Retry attempt: " + response.body.attemptNumber);
+    }
+%}
+
+###
+
+### ==================================================
+### 9. REGENERATE SECRET
+### ==================================================
+
+### 9.1 REGENERATE WEBHOOK SECRET
+POST {{host}}/api/v1/webhooks/{{orderWebhookId}}/regenerate-secret
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should regenerate secret", function() {
+        client.assert(response.status === 200, "Expected 200");
+    });
+    client.log("Secret regenerated for webhook: " + response.body.name);
+%}
+
+###
+
+### ==================================================
+### 10. AUTHORIZATION TESTS
+### ==================================================
+
+### 10.1 TRY WITHOUT TOKEN (should fail)
+GET {{host}}/api/v1/webhooks
+
+> {%
+    client.test("Should fail without token", function() {
+        client.assert(response.status === 401 || response.status === 403,
+            "Expected 401/403 without token");
+    });
+%}
+
+###
+
+### ==================================================
+### 11. ERROR CASES
+### ==================================================
+
+### 11.1 CREATE DUPLICATE WEBHOOK (same URL + event)
+POST {{host}}/api/v1/webhooks
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Duplicate Webhook",
+  "url": "https://webhook.site/updated-order-webhook",
+  "event": "ORDER_CREATED",
+  "maxRetries": 3,
+  "active": true
+}
+
+> {%
+    client.test("Duplicate webhook should fail", function() {
+        client.assert(response.status === 500 || response.status === 400,
+            "Expected error for duplicate webhook");
+    });
+%}
+
+###
+
+### 11.2 CREATE WEBHOOK WITH HTTP URL (should fail - HTTPS required)
+POST {{host}}/api/v1/webhooks
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "HTTP Webhook",
+  "url": "http://insecure-webhook.com/test",
+  "event": "ORDER_CREATED",
+  "maxRetries": 3
+}
+
+> {%
+    client.test("HTTP URL should fail validation", function() {
+        client.assert(response.status === 400, "Expected 400 for HTTP URL");
+    });
+%}
+
+###
+
+### 11.3 GET NON-EXISTENT WEBHOOK
+GET {{host}}/api/v1/webhooks/99999
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Non-existent webhook should return error", function() {
+        client.assert(response.status === 500 || response.status === 404||response.status===400,
+            "Expected error for non-existent webhook");
+    });
+%}
+
+###
+
+### ==================================================
+### 12. CLEANUP
+### ==================================================
+
+### 12.1 DELETE CUSTOMER WEBHOOK
+DELETE {{host}}/api/v1/webhooks/{{customerWebhookId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should delete webhook", function() {
+        client.assert(response.status === 204, "Expected 204 No Content");
+    });
+%}
+
+###
+
+### 12.2 VERIFY DELETION
+GET {{host}}/api/v1/webhooks/{{customerWebhookId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Deleted webhook should not be found", function() {
+        client.assert(response.status === 500 || response.status === 404||response.status===400,
+            "Expected error for deleted webhook");
+    });
+%}

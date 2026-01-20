@@ -6,6 +6,13 @@ This document serves as the entry point for the architectural and functional doc
 
 The system follows a **Modular Monolith** architecture built with Spring Boot. Each business domain is encapsulated in its own package (module).
 
+### Core Architecture Documents
+
+| Document | Description |
+| :--- | :--- |
+| [Multi-Tenancy Architecture](MULTI_TENANCY.md) | Complete guide to tenant isolation, data boundaries, and security |
+| [Common Module](src/main/java/com/firas/saas/common/README.md) | Base entities, TenantContext, and shared utilities |
+
 ### High-Level Modules
 
 | Module | Description | Documentation Link |
@@ -15,8 +22,13 @@ The system follows a **Modular Monolith** architecture built with Spring Boot. E
 | **User** | Manages User accounts (Merchant, Staff, Customer). | [User Module](src/main/java/com/firas/saas/user/README.md) |
 | **Product** | Catalog management (Products, Categories, Variants). | [Product Module](src/main/java/com/firas/saas/product/README.md) |
 | **Subscription** | Dynamic plans and billing strategy. | [Subscription Module](src/main/java/com/firas/saas/subscription/README.md) |
+| **Billing** | Invoice and payment management. | [Billing Module](src/main/java/com/firas/saas/billing/README.md) |
 | **Order** | Order processing and status management. | [Order Module](src/main/java/com/firas/saas/order/README.md) |
 | **Customer** | CRM data for store customers. | [Customer Module](src/main/java/com/firas/saas/customer/README.md) |
+| **Shipping** | Zones, rates, and shipment tracking. | [Shipping Module](src/main/java/com/firas/saas/shipping/README.md) |
+| **Discount** | Coupon codes and promotional discounts. | [Discount Module](src/main/java/com/firas/saas/discount/README.md) |
+| **Analytics** | Dashboard stats and sales reports. | [Analytics Module](src/main/java/com/firas/saas/analytics/README.md) |
+| **Webhook** | External integrations and event notifications. | [Webhook Module](src/main/java/com/firas/saas/webhook/README.md) |
 
 ## 🧩 System Context Diagram
 
@@ -28,17 +40,65 @@ graph TD
     App -->|Payment Processing| PG[Payment Gateway \n Stripe/PayPal]
 ```
 
-## 🔐 Database Schema (Simplified)
+## 🔐 Database Schema
 
 ```mermaid
 erDiagram
     TENANT ||--o{ USER : "has"
+    TENANT ||--o{ CUSTOMER : "has"
     TENANT ||--o{ PRODUCT : "owns"
+    TENANT ||--o{ CATEGORY : "owns"
+    TENANT ||--o{ ORDER : "has"
+    TENANT ||--o{ CART : "has"
     TENANT ||--o{ SUBSCRIPTION : "has"
-    PRODUCT ||--o{ VARIANT : "has"
+    TENANT ||--o{ INVOICE : "has"
+    TENANT ||--o{ PAYMENT : "has"
+    TENANT ||--o{ SHIPPING_ZONE : "has"
+    TENANT ||--o{ DISCOUNT : "has"
+    TENANT ||--o{ WEBHOOK : "has"
+    
+    PRODUCT ||--o{ PRODUCT_VARIANT : "has"
+    PRODUCT }o--|| CATEGORY : "belongs to"
     ORDER ||--o{ ORDER_ITEM : "contains"
-    USER }|--|| ROLE : "has"
+    CART ||--o{ CART_ITEM : "contains"
+    ORDER ||--o{ SHIPMENT : "has"
+    
+    SHIPPING_ZONE ||--o{ SHIPPING_RATE : "has"
+    DISCOUNT ||--o{ DISCOUNT_USAGE : "tracks"
+    WEBHOOK ||--o{ WEBHOOK_DELIVERY : "tracks"
+    
+    SUBSCRIPTION }o--|| SUBSCRIPTION_PLAN : "uses"
+    INVOICE ||--o{ PAYMENT : "has"
 ```
+
+### Tenant Scoping Summary
+
+| Entity | Tenant-Scoped | Notes |
+|--------|---------------|-------|
+| Tenant | N/A | IS the tenant |
+| User | ✅ | ManyToOne relationship |
+| Customer | ✅ | Extends TenantEntity |
+| Product | ✅ | Extends TenantEntity |
+| Category | ✅ | Extends TenantEntity |
+| ProductVariant | ✅ | Extends TenantEntity |
+| Order | ✅ | Extends TenantEntity |
+| Cart | ✅ | Extends TenantEntity |
+| Subscription | ✅ | Extends TenantEntity |
+| Invoice | ✅ | Extends TenantEntity |
+| Payment | ✅ | Extends TenantEntity |
+| ShippingZone | ✅ | Extends TenantEntity |
+| ShippingRate | ✅ | Extends TenantEntity |
+| Shipment | ✅ | Extends TenantEntity |
+| Discount | ✅ | Extends TenantEntity |
+| DiscountUsage | ✅ | Extends TenantEntity |
+| Webhook | ✅ | Extends TenantEntity |
+| WebhookDelivery | ✅ | Extends TenantEntity |
+| SubscriptionPlan | ❌ | Global (shared across tenants) |
 
 ## 📚 How to Navigate
 Click on the **Documentation Link** for each module above to view detailed schemas, internal flows, and API descriptions.
+
+## 📝 Last Updated
+
+- **Date**: January 20, 2026
+

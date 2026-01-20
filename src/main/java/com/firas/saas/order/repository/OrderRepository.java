@@ -12,4 +12,5 @@ public interface OrderRepository extends BaseRepository<Order> {
     List<Order> findAllByTenantId(Long tenantId);
     List<Order> findAllByCustomerEmailAndTenantId(String email, Long tenantId);
     Optional<Order> findByOrderNumberAndTenantId(String orderNumber, Long tenantId);
+    Optional<Order> findByIdAndTenantId(Long id, Long tenantId);
 }

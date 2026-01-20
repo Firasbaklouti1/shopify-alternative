@@ -21,6 +21,8 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final com.firas.saas.webhook.service.WebhookService webhookService;
+    private final com.firas.saas.tenant.repository.TenantRepository tenantRepository;
 
     @Override
     @Transactional
@@ -88,6 +90,25 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product saved = productRepository.save(product);
+
+        // Trigger Webhook
+        try {
+            String tenantSlug = tenantRepository.findById(tenantId)
+                    .map(com.firas.saas.tenant.entity.Tenant::getSlug)
+                    .orElse("unknown");
+
+            java.util.Map<String, Object> data = java.util.Map.of(
+                    "id", saved.getId(),
+                    "name", saved.getName(),
+                    "slug", saved.getSlug()
+            );
+
+            webhookService.triggerEvent(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_CREATED, 
+                    data, tenantId, tenantSlug);
+        } catch (Exception e) {
+            System.err.println("Failed to trigger PRODUCT_CREATED webhook: " + e.getMessage());
+        }
+
         return mapToProductResponse(saved);
     }
 
@@ -106,6 +127,25 @@ public class ProductServiceImpl implements ProductService {
         // In a real scenario, you'd handle variants and category changes more carefully
         
         Product saved = productRepository.save(product);
+
+        // Trigger Webhook
+        try {
+            String tenantSlug = tenantRepository.findById(tenantId)
+                    .map(com.firas.saas.tenant.entity.Tenant::getSlug)
+                    .orElse("unknown");
+
+            java.util.Map<String, Object> data = java.util.Map.of(
+                    "id", saved.getId(),
+                    "name", saved.getName(),
+                    "slug", saved.getSlug()
+            );
+
+            webhookService.triggerEvent(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_UPDATED, 
+                    data, tenantId, tenantSlug);
+        } catch (Exception e) {
+            System.err.println("Failed to trigger PRODUCT_UPDATED webhook: " + e.getMessage());
+        }
+
         return mapToProductResponse(saved);
     }
 
@@ -158,6 +198,24 @@ public class ProductServiceImpl implements ProductService {
                 .filter(p -> p.getTenantId().equals(tenantId))
                 .orElseThrow(() -> new RuntimeException("Product not found or access denied"));
         productRepository.delete(product);
+
+        // Trigger Webhook
+        try {
+            String tenantSlug = tenantRepository.findById(tenantId)
+                    .map(com.firas.saas.tenant.entity.Tenant::getSlug)
+                    .orElse("unknown");
+
+            java.util.Map<String, Object> data = java.util.Map.of(
+                    "id", id,
+                    "name", product.getName(),
+                    "slug", product.getSlug()
+            );
+
+            webhookService.triggerEvent(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_DELETED, 
+                    data, tenantId, tenantSlug);
+        } catch (Exception e) {
+            System.err.println("Failed to trigger PRODUCT_DELETED webhook: " + e.getMessage());
+        }
     }
 
     private CategoryResponse mapToCategoryResponse(Category category) {
