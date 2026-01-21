@@ -4,6 +4,7 @@ import com.firas.saas.security.dto.JwtResponse;
 import com.firas.saas.security.dto.LoginRequest;
 import com.firas.saas.security.dto.MerchantSignupRequest;
 import com.firas.saas.security.jwt.JwtUtils;
+import com.firas.saas.security.service.UserPrincipal;
 import com.firas.saas.tenant.dto.TenantResponse;
 import com.firas.saas.tenant.service.TenantService;
 import jakarta.validation.Valid;
@@ -13,7 +14,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,14 +40,14 @@ public class AuthController {
                 new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String jwt = jwtUtils.generateJwtToken(userDetails);
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        String jwt = jwtUtils.generateJwtToken(userPrincipal);
 
-        String role = userDetails.getAuthorities().stream()
+        String role = userPrincipal.getAuthorities().stream()
                 .map(item -> item.getAuthority())
                 .findFirst()
                 .orElse("ROLE_CUSTOMER");
 
-        return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getUsername(), role));
+        return ResponseEntity.ok(new JwtResponse(jwt, userPrincipal.getUsername(), role, userPrincipal.getTenantId()));
     }
 }

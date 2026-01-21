@@ -29,6 +29,16 @@ The system follows a **Modular Monolith** architecture built with Spring Boot. E
 | **Discount** | Coupon codes and promotional discounts. | [Discount Module](src/main/java/com/firas/saas/discount/README.md) |
 | **Analytics** | Dashboard stats and sales reports. | [Analytics Module](src/main/java/com/firas/saas/analytics/README.md) |
 | **Webhook** | External integrations and event notifications. | [Webhook Module](src/main/java/com/firas/saas/webhook/README.md) |
+| **App Platform** | Third-party app registration, installation, scoped tokens. | [App Platform Module](src/main/java/com/firas/saas/app/README.md) |
+
+## 🎯 Design Patterns Used
+
+| Pattern | Implementation | Purpose |
+| :--- | :--- | :--- |
+| **Observer Pattern** | `DomainEventPublisher` + `WebhookEventListener` | Decoupled event handling for webhooks |
+| **Strategy Pattern** | `PaymentStrategy` interface | Pluggable payment providers |
+| **Repository Pattern** | All `*Repository` classes | Data access abstraction |
+| **DTO Pattern** | `*Request`, `*Response` classes | API boundary separation |
 
 ## 🧩 System Context Diagram
 
@@ -93,6 +103,9 @@ erDiagram
 | DiscountUsage | ✅ | Extends TenantEntity |
 | Webhook | ✅ | Extends TenantEntity |
 | WebhookDelivery | ✅ | Extends TenantEntity |
+| App | ❌ | Global (platform-wide apps) |
+| AppInstallation | ✅ | Extends TenantEntity |
+| AppAccessToken | ✅ | Extends TenantEntity |
 | SubscriptionPlan | ❌ | Global (shared across tenants) |
 
 ## 📚 How to Navigate
@@ -100,5 +113,6 @@ Click on the **Documentation Link** for each module above to view detailed schem
 
 ## 📝 Last Updated
 
-- **Date**: January 20, 2026
+- **Date**: January 21, 2026
+- **Changes**: Added App Platform module, Observer Pattern for webhooks
 

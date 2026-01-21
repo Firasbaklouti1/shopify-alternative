@@ -1,5 +1,6 @@
 package com.firas.saas.product.service;
 
+import com.firas.saas.common.event.DomainEventPublisher;
 import com.firas.saas.product.dto.*;
 import com.firas.saas.product.entity.Category;
 import com.firas.saas.product.entity.Product;
@@ -21,7 +22,7 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
-    private final com.firas.saas.webhook.service.WebhookService webhookService;
+    private final DomainEventPublisher eventPublisher; // Observer pattern
     private final com.firas.saas.tenant.repository.TenantRepository tenantRepository;
 
     @Override
@@ -91,7 +92,7 @@ public class ProductServiceImpl implements ProductService {
 
         Product saved = productRepository.save(product);
 
-        // Trigger Webhook
+        // Publish domain event (Observer pattern)
         try {
             String tenantSlug = tenantRepository.findById(tenantId)
                     .map(com.firas.saas.tenant.entity.Tenant::getSlug)
@@ -103,10 +104,10 @@ public class ProductServiceImpl implements ProductService {
                     "slug", saved.getSlug()
             );
 
-            webhookService.triggerEvent(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_CREATED, 
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_CREATED,
                     data, tenantId, tenantSlug);
         } catch (Exception e) {
-            System.err.println("Failed to trigger PRODUCT_CREATED webhook: " + e.getMessage());
+            System.err.println("Failed to publish PRODUCT_CREATED event: " + e.getMessage());
         }
 
         return mapToProductResponse(saved);
@@ -128,7 +129,7 @@ public class ProductServiceImpl implements ProductService {
         
         Product saved = productRepository.save(product);
 
-        // Trigger Webhook
+        // Publish domain event (Observer pattern)
         try {
             String tenantSlug = tenantRepository.findById(tenantId)
                     .map(com.firas.saas.tenant.entity.Tenant::getSlug)
@@ -140,10 +141,10 @@ public class ProductServiceImpl implements ProductService {
                     "slug", saved.getSlug()
             );
 
-            webhookService.triggerEvent(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_UPDATED, 
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_UPDATED,
                     data, tenantId, tenantSlug);
         } catch (Exception e) {
-            System.err.println("Failed to trigger PRODUCT_UPDATED webhook: " + e.getMessage());
+            System.err.println("Failed to publish PRODUCT_UPDATED event: " + e.getMessage());
         }
 
         return mapToProductResponse(saved);
@@ -199,7 +200,7 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new RuntimeException("Product not found or access denied"));
         productRepository.delete(product);
 
-        // Trigger Webhook
+        // Publish domain event (Observer pattern)
         try {
             String tenantSlug = tenantRepository.findById(tenantId)
                     .map(com.firas.saas.tenant.entity.Tenant::getSlug)
@@ -211,10 +212,10 @@ public class ProductServiceImpl implements ProductService {
                     "slug", product.getSlug()
             );
 
-            webhookService.triggerEvent(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_DELETED, 
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_DELETED,
                     data, tenantId, tenantSlug);
         } catch (Exception e) {
-            System.err.println("Failed to trigger PRODUCT_DELETED webhook: " + e.getMessage());
+            System.err.println("Failed to publish PRODUCT_DELETED event: " + e.getMessage());
         }
     }
 

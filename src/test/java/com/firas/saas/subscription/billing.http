@@ -74,6 +74,6 @@ Content-Type: application/json
 
 > {%
     client.test("Invalid payment method should fail", function() {
-        client.assert(response.status === 500, "Expected 500 (or handled 400) for invalid method");
+        client.assert(response.status === 500||response.status===400, "Expected 500 (or handled 400) for invalid method");
     });
 %}

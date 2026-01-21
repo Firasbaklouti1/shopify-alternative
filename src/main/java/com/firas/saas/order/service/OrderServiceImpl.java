@@ -1,5 +1,6 @@
 package com.firas.saas.order.service;
 
+import com.firas.saas.common.event.DomainEventPublisher;
 import com.firas.saas.order.dto.*;
 import com.firas.saas.order.entity.*;
 import com.firas.saas.order.exception.InvalidOrderStateTransitionException;
@@ -26,7 +27,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
-    private final com.firas.saas.webhook.service.WebhookService webhookService;
+    private final DomainEventPublisher eventPublisher; // Observer pattern - cleaner approach
     private final com.firas.saas.tenant.repository.TenantRepository tenantRepository;
 
     @Override
@@ -151,7 +152,8 @@ public class OrderServiceImpl implements OrderService {
         // Clear cart after order placement
         cartRepository.delete(cart);
 
-        // Trigger Webhook
+        // Publish domain event (Observer pattern)
+        // The WebhookEventListener will handle webhook delivery
         try {
             String tenantSlug = tenantRepository.findById(tenantId)
                     .map(com.firas.saas.tenant.entity.Tenant::getSlug)
@@ -165,11 +167,12 @@ public class OrderServiceImpl implements OrderService {
                     "status", savedOrder.getStatus()
             );
             
-            webhookService.triggerEvent(com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_CREATED, 
+            // Observer pattern: publish event, listeners handle it
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_CREATED,
                     data, tenantId, tenantSlug);
         } catch (Exception e) {
             // Log but don't fail the transaction
-            System.err.println("Failed to trigger ORDER_CREATED webhook: " + e.getMessage());
+            System.err.println("Failed to publish ORDER_CREATED event: " + e.getMessage());
         }
 
         return mapToOrderResponse(savedOrder);
@@ -214,7 +217,7 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(status);
         Order updatedOrder = orderRepository.save(order);
 
-        // Trigger Webhook
+        // Publish domain events (Observer pattern)
         try {
             String tenantSlug = tenantRepository.findById(tenantId)
                     .map(com.firas.saas.tenant.entity.Tenant::getSlug)
@@ -227,11 +230,11 @@ public class OrderServiceImpl implements OrderService {
                     "previousStatus", currentStatus
             );
 
-            // Trigger general update event
-            webhookService.triggerEvent(com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_UPDATED, 
+            // Publish general update event
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_UPDATED,
                     data, tenantId, tenantSlug);
 
-            // Trigger specific status events
+            // Publish specific status events
             com.firas.saas.webhook.entity.Webhook.WebhookEvent specificEvent = switch (status) {
                 case PAID -> com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_PAID;
                 case DELIVERED -> com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_FULFILLED;
@@ -240,10 +243,10 @@ public class OrderServiceImpl implements OrderService {
             };
 
             if (specificEvent != null) {
-                webhookService.triggerEvent(specificEvent, data, tenantId, tenantSlug);
+                eventPublisher.publish(specificEvent, data, tenantId, tenantSlug);
             }
         } catch (Exception e) {
-            System.err.println("Failed to trigger order status webhooks: " + e.getMessage());
+            System.err.println("Failed to publish order status events: " + e.getMessage());
         }
 
         return mapToOrderResponse(updatedOrder);

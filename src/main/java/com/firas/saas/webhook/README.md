@@ -214,18 +214,22 @@ POST /api/v1/webhooks
 ```
 
 ### Triggering Webhooks from Domain Services
+
+**Recommended: Observer Pattern (Decoupled)**
+
 ```java
 @Service
+@RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
     
-    private final WebhookService webhookService;
+    private final DomainEventPublisher eventPublisher; // Observer pattern
     
     @Override
     public OrderResponse createOrder(OrderRequest request, Long tenantId) {
         Order order = // create order
         
-        // Trigger webhook asynchronously
-        webhookService.triggerEvent(
+        // Publish domain event - listeners handle webhook delivery
+        eventPublisher.publish(
             WebhookEvent.ORDER_CREATED,
             Map.of(
                 "orderId", order.getId(),
@@ -240,6 +244,41 @@ public class OrderServiceImpl implements OrderService {
         return mapToResponse(order);
     }
 }
+```
+
+**Event Listener (handles webhook delivery):**
+
+```java
+@Component
+@RequiredArgsConstructor
+public class WebhookEventListener {
+    
+    private final WebhookService webhookService;
+    
+    @EventListener
+    @Async
+    public void handleDomainEvent(DomainEvent event) {
+        webhookService.triggerEvent(
+            event.getEventType(),
+            event.getData(),
+            event.getTenantId(),
+            event.getTenantSlug()
+        );
+    }
+}
+```
+
+**Benefits of Observer Pattern:**
+- Services are decoupled from webhook system
+- Easy to add new listeners (email, analytics) without modifying services
+- Async handling via `@Async` annotation
+- Testable - verify events were published
+
+**Legacy: Direct Call (Still Supported)**
+
+```java
+// Direct call - works but creates tight coupling
+webhookService.triggerEvent(WebhookEvent.ORDER_CREATED, data, tenantId, tenantSlug);
 ```
 
 ## 🔒 Security & Isolation

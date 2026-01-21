@@ -1,6 +1,7 @@
 package com.firas.saas.webhook.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.firas.saas.app.service.AppWebhookService;
 import com.firas.saas.common.exception.ResourceNotFoundException;
 import com.firas.saas.webhook.dto.*;
 import com.firas.saas.webhook.entity.Webhook;
@@ -9,6 +10,7 @@ import com.firas.saas.webhook.repository.WebhookDeliveryRepository;
 import com.firas.saas.webhook.repository.WebhookRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -26,14 +28,25 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class WebhookServiceImpl implements WebhookService {
 
     private final WebhookRepository webhookRepository;
     private final WebhookDeliveryRepository deliveryRepository;
     private final ObjectMapper objectMapper;
+    private final AppWebhookService appWebhookService;
     private final RestTemplate restTemplate = new RestTemplate();
+
+    public WebhookServiceImpl(
+            WebhookRepository webhookRepository,
+            WebhookDeliveryRepository deliveryRepository,
+            ObjectMapper objectMapper,
+            @Lazy AppWebhookService appWebhookService) {
+        this.webhookRepository = webhookRepository;
+        this.deliveryRepository = deliveryRepository;
+        this.objectMapper = objectMapper;
+        this.appWebhookService = appWebhookService;
+    }
 
     private static final SecureRandom secureRandom = new SecureRandom();
     private static final int MAX_RESPONSE_BODY_LENGTH = 1000;
@@ -140,6 +153,14 @@ public class WebhookServiceImpl implements WebhookService {
     @Async
     @Transactional
     public void triggerEvent(Webhook.WebhookEvent event, Map<String, Object> data, Long tenantId, String tenantSlug) {
+        // Deliver to installed apps (based on their scopes)
+        try {
+            appWebhookService.deliverToApps(event, data, tenantId);
+        } catch (Exception e) {
+            log.error("Failed to deliver event {} to apps: {}", event, e.getMessage());
+        }
+
+        // Deliver to merchant-registered webhooks
         List<Webhook> webhooks = webhookRepository.findAllByTenantIdAndEventAndActiveTrue(tenantId, event)
                 .stream()
                 .filter(w -> !w.isPaused())

@@ -39,6 +39,15 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional(readOnly = true)
+    public CustomerResponse getCustomerById(Long id, Long tenantId) {
+        return customerRepository.findById(id)
+                .filter(c -> c.getTenantId().equals(tenantId))
+                .map(this::mapToResponse)
+                .orElseThrow(() -> new RuntimeException("Customer not found"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public CustomerResponse getCustomerByEmail(String email, Long tenantId) {
         return customerRepository.findByEmailAndTenantId(email, tenantId)
                 .map(this::mapToResponse)
