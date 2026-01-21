@@ -1,6 +1,6 @@
 package com.firas.saas.subscription.entity;
 
-import com.firas.saas.common.base.BaseEntity;
+import com.firas.saas.common.base.TenantEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -13,10 +13,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Subscription extends BaseEntity {
+public class Subscription extends TenantEntity {
 
-    @Column(nullable = false)
-    private Long tenantId;
+    // tenantId is inherited from TenantEntity
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "plan_id", nullable = false)

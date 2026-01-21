@@ -1,0 +1,292 @@
+### Order Sync App - End-to-End Validation Test
+### This file tests the complete App Platform flow
+###
+### Prerequisites:
+### 1. Platform running on port 8080 (mvn spring-boot:run in main project)
+### 2. Order Sync App running on port 8081 (mvn spring-boot:run in order-sync-app)
+###
+### Run tests in order!
+
+### ==================== PHASE 1: SETUP ====================
+
+### 1.1 Check Order Sync App Health
+GET http://localhost:8081/api/health
+
+### 1.2 Login Admin (use seeded admin@saas.com with ADMIN role)
+### NOTE: Admin is seeded by DataSeeder on startup with Role.ADMIN
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@saas.com",
+  "password": "Admin123!"
+}
+
+> {%
+    client.global.set("admin_token", response.body.token);
+    client.global.set("admin_tenant_id", response.body.tenantId);
+    console.log("Admin token obtained, tenantId: " + response.body.tenantId);
+%}
+
+### 1.3 Register Merchant Store - May fail if already exists
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "E2E Test Store",
+  "storeSlug": "e2e-test-store",
+  "email": "merchant-e2e@teststore.com",
+  "password": "Merchant123!",
+  "fullName": "E2E Merchant"
+}
+
+> {%
+    // Registration may fail if user exists - that's OK, we'll login next
+    if (response.status === 200) {
+        console.log("Merchant registered successfully");
+    } else {
+        console.log("Merchant registration skipped (may already exist)");
+    }
+%}
+
+### 1.4 Login Merchant (to get token)
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "merchant-e2e@teststore.com",
+  "password": "Merchant123!"
+}
+
+> {%
+    client.global.set("merchant_token", response.body.token);
+    client.global.set("merchant_tenant_id", response.body.tenantId);
+    console.log("Merchant token obtained, tenantId: " + response.body.tenantId);
+%}
+
+### ==================== PHASE 2: APP REGISTRATION (ADMIN) ====================
+
+### 2.1 Create the Order Sync App
+POST http://localhost:8080/api/v1/apps
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "name": "Order Sync & Auto-Fulfillment",
+  "description": "Syncs orders to external fulfillment and auto-updates order status with tracking info.",
+  "developerName": "E2E Test Developer",
+  "webhookUrl": "http://localhost:8081/webhooks",
+  "declaredScopes": ["READ_ORDERS", "WRITE_ORDERS", "READ_CUSTOMERS"]
+}
+
+> {%
+    client.global.set("app_id", response.body.app.id);
+    client.global.set("client_id", response.body.app.clientId);
+    client.global.set("client_secret", response.body.clientSecret);
+    console.log("IMPORTANT: Save these credentials!");
+    console.log("Client ID: " + response.body.app.clientId);
+    console.log("Client Secret: " + response.body.clientSecret);
+%}
+
+### 2.2 Publish the App
+PATCH http://localhost:8080/api/v1/apps/{{app_id}}/publish
+Authorization: Bearer {{admin_token}}
+
+### ==================== PHASE 3: APP INSTALLATION (MERCHANT) ====================
+
+### 3.1 Merchant Installs the App
+POST http://localhost:8080/api/v1/app-installations/install
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "clientId": "{{client_id}}",
+  "clientSecret": "{{client_secret}}",
+  "grantedScopes": ["READ_ORDERS", "WRITE_ORDERS", "READ_CUSTOMERS"]
+}
+
+> {%
+    client.global.set("installation_id", response.body.installation.installationId);
+    client.global.set("app_access_token", response.body.accessToken);
+    console.log("App Access Token: " + response.body.accessToken);
+%}
+
+### 3.2 Configure Token in Order Sync App
+POST http://localhost:8081/api/config/token
+Content-Type: application/json
+
+{
+  "tenantId": {{merchant_tenant_id}},
+  "accessToken": "{{app_access_token}}"
+}
+
+### 3.3 Verify Token Configuration
+GET http://localhost:8081/api/config/verify/{{merchant_tenant_id}}
+
+### ==================== PHASE 4: CREATE TEST DATA (MERCHANT) ====================
+
+### 4.1 Create Category (using timestamp for uniqueness)
+POST http://localhost:8080/api/v1/products/categories
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "name": "Electronics {{$timestamp}}",
+  "slug": "electronics-e2e-{{$timestamp}}"
+}
+
+> {%
+    client.global.set("category_id", response.body.id);
+%}
+
+### 4.2 Create Product (using timestamp for uniqueness)
+POST http://localhost:8080/api/v1/products
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "name": "E2E Test Laptop {{$timestamp}}",
+  "slug": "e2e-test-laptop-{{$timestamp}}",
+  "description": "A laptop for E2E testing",
+  "categoryId": {{category_id}},
+  "variants": [
+    {
+      "name": "Default",
+      "sku": "E2E-LAPTOP-{{$timestamp}}",
+      "price": 1299.99,
+      "stockLevel": 50
+    }
+  ]
+}
+
+> {%
+    client.global.set("product_id", response.body.id);
+    // SKU is in the first variant
+    if (response.body.variants && response.body.variants.length > 0) {
+        client.global.set("product_sku", response.body.variants[0].sku);
+        console.log("Product SKU captured: " + response.body.variants[0].sku);
+    } else {
+        console.log("WARNING: No variants in response, product creation may have failed");
+        console.log("Response: " + JSON.stringify(response.body));
+    }
+%}
+
+### 4.3 Create Customer (using timestamp for uniqueness)
+POST http://localhost:8080/api/v1/customers
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "email": "e2e-customer-{{$timestamp}}@test.com",
+  "firstName": "E2E",
+  "lastName": "Customer",
+  "phone": "+1234567890",
+  "address": "123 E2E Test St, Test City"
+}
+
+> {%
+    client.global.set("customer_id", response.body.id);
+%}
+
+### ==================== PHASE 5: CREATE ORDER (TRIGGERS WEBHOOK) ====================
+
+### 5.1 Add to Cart (using SKU from product creation)
+POST http://localhost:8080/api/v1/orders/cart/add
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "sku": "{{product_sku}}",
+  "quantity": 2
+}
+
+> {%
+    client.global.set("cart_id", response.body.id);
+%}
+
+### 5.2 Place Order (checkout uses cart associated with logged-in user)
+POST http://localhost:8080/api/v1/orders/checkout
+Authorization: Bearer {{merchant_token}}
+
+> {%
+    client.global.set("order_id", response.body.id);
+    console.log("Order created with ID: " + response.body.id);
+%}
+
+### ==================== PHASE 6: VERIFY WEBHOOK RECEIVED ====================
+
+### 6.1 Check Order Sync App Status
+GET http://localhost:8081/api/status
+
+### 6.2 Check Received Webhooks
+GET http://localhost:8081/api/webhooks
+
+### 6.3 Check Synced Orders
+GET http://localhost:8081/api/orders
+
+### 6.4 Check Order by Platform ID
+GET http://localhost:8081/api/orders/platform/{{order_id}}
+
+### ==================== PHASE 7: VERIFY API CALLS WORK ====================
+
+### 7.1 App Fetches Orders via Platform API
+GET http://localhost:8080/api/v1/app/orders
+Authorization: Bearer {{app_access_token}}
+
+### 7.2 App Fetches Specific Order
+GET http://localhost:8080/api/v1/app/orders/{{order_id}}
+Authorization: Bearer {{app_access_token}}
+
+### 7.3 App Fetches Customers
+GET http://localhost:8080/api/v1/app/customers
+Authorization: Bearer {{app_access_token}}
+
+### 7.4 App Info (/me)
+GET http://localhost:8080/api/v1/app/me
+Authorization: Bearer {{app_access_token}}
+
+### ==================== PHASE 8: TEST SCOPE ENFORCEMENT ====================
+
+### 8.1 App Tries to Fetch Products (READ_PRODUCTS not granted - should fail)
+GET http://localhost:8080/api/v1/app/products
+Authorization: Bearer {{app_access_token}}
+
+### Expected: 403 Forbidden - Missing required scope(s): READ_PRODUCTS
+
+### ==================== PHASE 9: APP UPDATES ORDER STATUS ====================
+
+### 9.1 Update Order to PAID
+PATCH http://localhost:8080/api/v1/orders/{{order_id}}/status?status=PAID
+Authorization: Bearer {{merchant_token}}
+
+### 9.2 App Updates Order to SHIPPED (using WRITE_ORDERS scope)
+PATCH http://localhost:8080/api/v1/app/orders/{{order_id}}/status?status=SHIPPED
+Authorization: Bearer {{app_access_token}}
+
+### 9.3 Verify Order Status Changed
+GET http://localhost:8080/api/v1/orders/{{order_id}}
+Authorization: Bearer {{merchant_token}}
+
+### 9.4 Check Synced Order Status in App
+GET http://localhost:8081/api/orders/platform/{{order_id}}
+
+### ==================== PHASE 10: UNINSTALL AND VERIFY REVOCATION ====================
+
+### 10.1 Uninstall the App
+DELETE http://localhost:8080/api/v1/app-installations/{{installation_id}}
+Authorization: Bearer {{merchant_token}}
+
+### 10.2 Try to Call API with Revoked Token (Should Fail)
+GET http://localhost:8080/api/v1/app/orders
+Authorization: Bearer {{app_access_token}}
+
+### Expected: 401 Unauthorized - Token is invalid, expired, or revoked
+
+### 10.3 Check App Status (should show uninstall event)
+GET http://localhost:8081/api/webhooks
+
+### ==================== CLEANUP ====================
+
+### Delete the test app (optional)
+# DELETE http://localhost:8080/api/v1/apps/{{app_id}}
+# Authorization: Bearer {{admin_token}}

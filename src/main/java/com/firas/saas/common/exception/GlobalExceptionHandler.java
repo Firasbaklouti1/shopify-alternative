@@ -1,5 +1,6 @@
 package com.firas.saas.common.exception;
 
+import com.firas.saas.order.exception.InvalidOrderStateTransitionException;
 import com.firas.saas.tenant.exception.TenantNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,26 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(InvalidOrderStateTransitionException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidOrderStateTransition(InvalidOrderStateTransitionException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                LocalDateTime.now().toString()
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                ex.getMessage(),
+                LocalDateTime.now().toString()
+        );
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
 
     @ExceptionHandler(TenantNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleTenantNotFound(TenantNotFoundException ex) {

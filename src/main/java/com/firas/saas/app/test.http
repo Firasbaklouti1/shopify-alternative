@@ -1,0 +1,346 @@
+### App Platform Test File
+### Run these tests in order to validate the App Platform functionality
+
+### ==================== SETUP ====================
+
+### 1. Register Admin Tenant (System Admin)
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Platform Admin Store",
+  "slug": "platform-admin",
+  "email": "admin@platform.com",
+  "password": "Admin123!",
+  "fullName": "Platform Admin"
+}
+
+> {%
+    client.global.set("admin_token", response.body.token);
+    client.global.set("admin_tenant_id", response.body.tenantId);
+%}
+
+### 2. Login as Admin
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@platform.com",
+  "password": "Admin123!"
+}
+
+> {%
+    client.global.set("admin_token", response.body.token);
+%}
+
+### 3. Register Merchant Tenant
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Test Store",
+  "slug": "test-store-app",
+  "email": "merchant@teststore.com",
+  "password": "Merchant123!",
+  "fullName": "Test Merchant"
+}
+
+> {%
+    client.global.set("merchant_token", response.body.token);
+    client.global.set("merchant_tenant_id", response.body.tenantId);
+%}
+
+### 4. Login as Merchant
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "merchant@teststore.com",
+  "password": "Merchant123!"
+}
+
+> {%
+    client.global.set("merchant_token", response.body.token);
+%}
+
+### ==================== APP MANAGEMENT (ADMIN) ====================
+
+### 5. Get Available Scopes (Public)
+GET http://localhost:8080/api/v1/apps/scopes
+
+### 6. Create App (requires ADMIN role - will fail with MERCHANT token)
+# Note: In a real setup, admin@platform.com would need ADMIN role assigned
+POST http://localhost:8080/api/v1/apps
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "name": "Order Sync App",
+  "description": "Synchronizes orders to external fulfillment system and marks them as fulfilled automatically.",
+  "developerName": "Test Developer Inc.",
+  "webhookUrl": "http://localhost:8081/webhooks",
+  "declaredScopes": ["READ_ORDERS", "WRITE_ORDERS", "READ_CUSTOMERS"]
+}
+
+> {%
+    client.global.set("app_id", response.body.app.id);
+    client.global.set("client_id", response.body.app.clientId);
+    client.global.set("client_secret", response.body.clientSecret);
+%}
+
+### 7. Get App by ID
+GET http://localhost:8080/api/v1/apps/{{app_id}}
+Authorization: Bearer {{admin_token}}
+
+### 8. Get App by Client ID
+GET http://localhost:8080/api/v1/apps/by-client-id/{{client_id}}
+Authorization: Bearer {{admin_token}}
+
+### 9. Update App
+PUT http://localhost:8080/api/v1/apps/{{app_id}}
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "description": "Updated: Syncs orders and auto-fulfills them with tracking info."
+}
+
+### 10. List All Apps (ADMIN sees all including DRAFT)
+GET http://localhost:8080/api/v1/apps?includeNonPublished=true
+Authorization: Bearer {{admin_token}}
+
+### 11. Publish App
+PATCH http://localhost:8080/api/v1/apps/{{app_id}}/publish
+Authorization: Bearer {{admin_token}}
+
+### 12. List Published Apps (MERCHANT can see)
+GET http://localhost:8080/api/v1/apps
+Authorization: Bearer {{merchant_token}}
+
+### ==================== APP INSTALLATION (MERCHANT) ====================
+
+### 13. Install App
+POST http://localhost:8080/api/v1/app-installations/install
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "clientId": "{{client_id}}",
+  "clientSecret": "{{client_secret}}",
+  "grantedScopes": ["READ_ORDERS", "WRITE_ORDERS", "READ_CUSTOMERS"]
+}
+
+> {%
+    client.global.set("installation_id", response.body.installation.installationId);
+    client.global.set("app_access_token", response.body.accessToken);
+%}
+
+### 14. List Installed Apps
+GET http://localhost:8080/api/v1/app-installations
+Authorization: Bearer {{merchant_token}}
+
+### 15. Get Active Installed Apps
+GET http://localhost:8080/api/v1/app-installations/active
+Authorization: Bearer {{merchant_token}}
+
+### 16. Get Installation Details
+GET http://localhost:8080/api/v1/app-installations/{{installation_id}}
+Authorization: Bearer {{merchant_token}}
+
+### 17. Get Tokens for Installation
+GET http://localhost:8080/api/v1/app-installations/{{installation_id}}/tokens
+Authorization: Bearer {{merchant_token}}
+
+### ==================== APP API CALLS (Using App Token) ====================
+
+### 18. Get App Info (/me)
+GET http://localhost:8080/api/v1/app/me
+Authorization: Bearer {{app_access_token}}
+
+### 19. Get Orders (requires READ_ORDERS scope)
+GET http://localhost:8080/api/v1/app/orders
+Authorization: Bearer {{app_access_token}}
+
+### 20. Get Products (requires READ_PRODUCTS scope - will fail if not granted)
+GET http://localhost:8080/api/v1/app/products
+Authorization: Bearer {{app_access_token}}
+
+### 21. Get Customers (requires READ_CUSTOMERS scope)
+GET http://localhost:8080/api/v1/app/customers
+Authorization: Bearer {{app_access_token}}
+
+### ==================== CREATE TEST DATA ====================
+
+### 22. Create Category (as Merchant)
+POST http://localhost:8080/api/v1/products/categories
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "name": "Electronics",
+  "slug": "electronics"
+}
+
+> {%
+    client.global.set("category_id", response.body.id);
+%}
+
+### 23. Create Product
+POST http://localhost:8080/api/v1/products
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "name": "Test Laptop",
+  "slug": "test-laptop",
+  "description": "A test laptop for app testing",
+  "price": 999.99,
+  "sku": "LAPTOP-001",
+  "categoryId": {{category_id}},
+  "stock": 10
+}
+
+> {%
+    client.global.set("product_id", response.body.id);
+%}
+
+### 24. Create Customer
+POST http://localhost:8080/api/v1/customers
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john.doe@example.com",
+  "phone": "+1234567890"
+}
+
+### 25. Add to Cart (Customer email)
+POST http://localhost:8080/api/v1/orders/cart/add
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "productId": {{product_id}},
+  "quantity": 2,
+  "customerEmail": "john.doe@example.com"
+}
+
+### 26. Place Order
+POST http://localhost:8080/api/v1/orders
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "customerEmail": "john.doe@example.com"
+}
+
+> {%
+    client.global.set("order_id", response.body.id);
+%}
+
+### ==================== APP API: ORDER OPERATIONS ====================
+
+### 27. App: Get All Orders
+GET http://localhost:8080/api/v1/app/orders
+Authorization: Bearer {{app_access_token}}
+
+### 28. App: Get Order by ID
+GET http://localhost:8080/api/v1/app/orders/{{order_id}}
+Authorization: Bearer {{app_access_token}}
+
+### 29. App: Update Order Status to FULFILLED (requires WRITE_ORDERS)
+PATCH http://localhost:8080/api/v1/app/orders/{{order_id}}/status?status=FULFILLED
+Authorization: Bearer {{app_access_token}}
+
+### 30. App: Get Customer by ID
+GET http://localhost:8080/api/v1/app/customers/1
+Authorization: Bearer {{app_access_token}}
+
+### ==================== TOKEN ROTATION ====================
+
+### 31. Rotate App Token
+POST http://localhost:8080/api/v1/app-installations/{{installation_id}}/rotate-token
+Authorization: Bearer {{merchant_token}}
+
+> {%
+    client.global.set("new_app_token", response.body.accessToken);
+%}
+
+### 32. Verify Old Token is Revoked (should fail with 401)
+GET http://localhost:8080/api/v1/app/me
+Authorization: Bearer {{app_access_token}}
+
+### 33. Verify New Token Works
+GET http://localhost:8080/api/v1/app/me
+Authorization: Bearer {{new_app_token}}
+
+### ==================== SCOPE VIOLATION TEST ====================
+
+### 34. Install App with Limited Scopes
+POST http://localhost:8080/api/v1/app-installations/install
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "clientId": "{{client_id}}",
+  "clientSecret": "{{client_secret}}",
+  "grantedScopes": ["READ_ORDERS"]
+}
+
+> {%
+    client.global.set("limited_installation_id", response.body.installation.installationId);
+    client.global.set("limited_token", response.body.accessToken);
+%}
+
+### 35. Try to Update Order Status (should fail - no WRITE_ORDERS)
+PATCH http://localhost:8080/api/v1/app/orders/{{order_id}}/status?status=DELIVERED
+Authorization: Bearer {{limited_token}}
+
+### 36. Try to Get Customers (should fail - no READ_CUSTOMERS)
+GET http://localhost:8080/api/v1/app/customers
+Authorization: Bearer {{limited_token}}
+
+### ==================== UNINSTALL ====================
+
+### 37. Uninstall App
+DELETE http://localhost:8080/api/v1/app-installations/{{installation_id}}
+Authorization: Bearer {{merchant_token}}
+
+### 38. Verify Token No Longer Works (should fail with 401)
+GET http://localhost:8080/api/v1/app/me
+Authorization: Bearer {{new_app_token}}
+
+### 39. List Installed Apps (should show REVOKED status)
+GET http://localhost:8080/api/v1/app-installations
+Authorization: Bearer {{merchant_token}}
+
+### ==================== ADMIN: SUSPEND APP ====================
+
+### 40. Suspend App (ADMIN)
+PATCH http://localhost:8080/api/v1/apps/{{app_id}}/suspend
+Authorization: Bearer {{admin_token}}
+
+### 41. Try to Install Suspended App (should fail)
+POST http://localhost:8080/api/v1/app-installations/install
+Authorization: Bearer {{merchant_token}}
+Content-Type: application/json
+
+{
+  "clientId": "{{client_id}}",
+  "clientSecret": "{{client_secret}}",
+  "grantedScopes": ["READ_ORDERS"]
+}
+
+### 42. Regenerate Client Secret (ADMIN)
+POST http://localhost:8080/api/v1/apps/{{app_id}}/regenerate-secret
+Authorization: Bearer {{admin_token}}
+
+> {%
+    client.global.set("new_client_secret", response.body.clientSecret);
+%}
+
+### 43. Delete App (ADMIN)
+DELETE http://localhost:8080/api/v1/apps/{{app_id}}
+Authorization: Bearer {{admin_token}}

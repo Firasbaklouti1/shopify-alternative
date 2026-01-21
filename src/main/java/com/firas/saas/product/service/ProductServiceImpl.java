@@ -1,5 +1,6 @@
 package com.firas.saas.product.service;
 
+import com.firas.saas.common.event.DomainEventPublisher;
 import com.firas.saas.product.dto.*;
 import com.firas.saas.product.entity.Category;
 import com.firas.saas.product.entity.Product;
@@ -21,6 +22,8 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final DomainEventPublisher eventPublisher; // Observer pattern
+    private final com.firas.saas.tenant.repository.TenantRepository tenantRepository;
 
     @Override
     @Transactional
@@ -88,6 +91,25 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Product saved = productRepository.save(product);
+
+        // Publish domain event (Observer pattern)
+        try {
+            String tenantSlug = tenantRepository.findById(tenantId)
+                    .map(com.firas.saas.tenant.entity.Tenant::getSlug)
+                    .orElse("unknown");
+
+            java.util.Map<String, Object> data = java.util.Map.of(
+                    "id", saved.getId(),
+                    "name", saved.getName(),
+                    "slug", saved.getSlug()
+            );
+
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_CREATED,
+                    data, tenantId, tenantSlug);
+        } catch (Exception e) {
+            System.err.println("Failed to publish PRODUCT_CREATED event: " + e.getMessage());
+        }
+
         return mapToProductResponse(saved);
     }
 
@@ -106,6 +128,25 @@ public class ProductServiceImpl implements ProductService {
         // In a real scenario, you'd handle variants and category changes more carefully
         
         Product saved = productRepository.save(product);
+
+        // Publish domain event (Observer pattern)
+        try {
+            String tenantSlug = tenantRepository.findById(tenantId)
+                    .map(com.firas.saas.tenant.entity.Tenant::getSlug)
+                    .orElse("unknown");
+
+            java.util.Map<String, Object> data = java.util.Map.of(
+                    "id", saved.getId(),
+                    "name", saved.getName(),
+                    "slug", saved.getSlug()
+            );
+
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_UPDATED,
+                    data, tenantId, tenantSlug);
+        } catch (Exception e) {
+            System.err.println("Failed to publish PRODUCT_UPDATED event: " + e.getMessage());
+        }
+
         return mapToProductResponse(saved);
     }
 
@@ -158,6 +199,24 @@ public class ProductServiceImpl implements ProductService {
                 .filter(p -> p.getTenantId().equals(tenantId))
                 .orElseThrow(() -> new RuntimeException("Product not found or access denied"));
         productRepository.delete(product);
+
+        // Publish domain event (Observer pattern)
+        try {
+            String tenantSlug = tenantRepository.findById(tenantId)
+                    .map(com.firas.saas.tenant.entity.Tenant::getSlug)
+                    .orElse("unknown");
+
+            java.util.Map<String, Object> data = java.util.Map.of(
+                    "id", id,
+                    "name", product.getName(),
+                    "slug", product.getSlug()
+            );
+
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.PRODUCT_DELETED,
+                    data, tenantId, tenantSlug);
+        } catch (Exception e) {
+            System.err.println("Failed to publish PRODUCT_DELETED event: " + e.getMessage());
+        }
     }
 
     private CategoryResponse mapToCategoryResponse(Category category) {

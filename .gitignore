@@ -46,3 +46,8 @@ logs/
 
 # Context Handoff
 PROJECT_HANDOFF.md
+
+# Test Results
+*.html
+*.xml
+

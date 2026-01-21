@@ -1,0 +1,456 @@
+### ==================================================
+### Shipping Module API Tests
+### ==================================================
+### This test follows the pattern in e2e_scenario.http
+### Token is obtained via login, not from env file
+
+@host = http://localhost:8080
+
+### ==================================================
+### 0. AUTHENTICATION SETUP
+### ==================================================
+### 0.0 Register Merchant
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "E2E Store {{$random.uuid}}",
+  "storeSlug": "e2e-store-{{$random.uuid}}",
+  "email": "merchant@example.com",
+  "password": "password123",
+  "fullName": "Merchant E2E"
+}
+
+> {%
+    client.global.set("merchantEmail", response.body.ownerEmail || response.body.email);
+    client.global.set("tenantId", response.body.id);
+%}
+### 0.1 Login as Merchant (assumes merchant exists)
+# @name merchantLogin
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "merchant@example.com",
+  "password": "password123"
+}
+
+> {%
+    client.global.set("merchantToken", response.body.token);
+    client.log("✓ Logged in as merchant");
+%}
+
+###
+
+### ==================================================
+### 1. SHIPPING ZONES
+### ==================================================
+
+### 1.1 CREATE SHIPPING ZONE - Domestic
+# @name createDomesticZone
+POST {{host}}/api/v1/shipping/zones
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Domestic",
+  "countries": "US",
+  "active": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("domesticZoneId", response.body.id);
+        client.log("✓ SUCCESS: Domestic zone created with ID: " + response.body.id);
+    } else {
+        client.log("✗ FAILED: " + response.status);
+    }
+%}
+
+###
+
+### 1.2 CREATE SHIPPING ZONE - International
+# @name createInternationalZone
+POST {{host}}/api/v1/shipping/zones
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "International",
+  "countries": "CA,MX,GB,DE,FR",
+  "active": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("internationalZoneId", response.body.id);
+        client.log("✓ SUCCESS: International zone created with ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 1.3 GET ALL SHIPPING ZONES
+GET {{host}}/api/v1/shipping/zones
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return list of zones", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.assert(Array.isArray(response.body), "Expected array");
+    });
+%}
+
+###
+
+### 1.4 GET SHIPPING ZONE BY ID
+GET {{host}}/api/v1/shipping/zones/{{domesticZoneId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return zone", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.name === "Domestic", "Expected Domestic zone");
+    });
+%}
+
+###
+
+### 1.5 UPDATE SHIPPING ZONE
+PUT {{host}}/api/v1/shipping/zones/{{domesticZoneId}}
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Domestic USA",
+  "countries": "US",
+  "active": true
+}
+
+> {%
+    client.test("Should update zone", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.name === "Domestic USA", "Expected updated name");
+    });
+%}
+
+###
+
+### ==================================================
+### 2. SHIPPING RATES
+### ==================================================
+
+### 2.1 CREATE SHIPPING RATE - Standard
+# @name createStandardRate
+POST {{host}}/api/v1/shipping/rates
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "zoneId": {{domesticZoneId}},
+  "name": "Standard Shipping",
+  "price": 5.99,
+  "minOrderAmount": 0,
+  "minDeliveryDays": 5,
+  "maxDeliveryDays": 7,
+  "active": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("standardRateId", response.body.id);
+        client.log("✓ SUCCESS: Standard rate created with ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 2.2 CREATE SHIPPING RATE - Express
+# @name createExpressRate
+POST {{host}}/api/v1/shipping/rates
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "zoneId": {{domesticZoneId}},
+  "name": "Express Shipping",
+  "price": 14.99,
+  "minOrderAmount": 0,
+  "minDeliveryDays": 1,
+  "maxDeliveryDays": 2,
+  "active": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("expressRateId", response.body.id);
+        client.log("✓ SUCCESS: Express rate created with ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 2.3 CREATE SHIPPING RATE - Free Shipping (for orders over $50)
+POST {{host}}/api/v1/shipping/rates
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "zoneId": {{domesticZoneId}},
+  "name": "Free Shipping",
+  "price": 0,
+  "minOrderAmount": 50.00,
+  "minDeliveryDays": 5,
+  "maxDeliveryDays": 10,
+  "active": true
+}
+
+###
+
+### 2.4 GET ALL SHIPPING RATES
+GET {{host}}/api/v1/shipping/rates
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return list of rates", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(Array.isArray(response.body), "Expected array");
+    });
+%}
+
+###
+
+### 2.5 GET RATES BY ZONE
+GET {{host}}/api/v1/shipping/zones/{{domesticZoneId}}/rates
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return rates for zone", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(Array.isArray(response.body), "Expected array");
+    });
+%}
+
+###
+
+### 2.6 UPDATE SHIPPING RATE
+PUT {{host}}/api/v1/shipping/rates/{{standardRateId}}
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "zoneId": {{domesticZoneId}},
+  "name": "Standard Ground Shipping",
+  "price": 4.99,
+  "minOrderAmount": 0,
+  "minDeliveryDays": 5,
+  "maxDeliveryDays": 7,
+  "active": true
+}
+
+> {%
+    client.test("Should update rate", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.price === 4.99, "Expected updated price");
+    });
+%}
+
+###
+
+### ==================================================
+### 3. SHIPMENTS
+### ==================================================
+
+### 3.1 CREATE SHIPMENT
+# @name createShipment
+POST {{host}}/api/v1/shipping/shipments
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "orderId": 1,
+  "carrier": "UPS",
+  "trackingNumber": "1Z999AA10123456784",
+  "trackingUrl": "https://www.ups.com/track?tracknum=1Z999AA10123456784",
+  "shippingAddress": "123 Main St, New York, NY 10001"
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("shipmentId", response.body.id);
+        client.log("✓ SUCCESS: Shipment created with ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 3.2 GET SHIPMENT BY ID
+GET {{host}}/api/v1/shipping/shipments/{{shipmentId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return shipment", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.carrier === "UPS", "Expected UPS carrier");
+        client.assert(response.body.status === "PENDING", "Expected PENDING status");
+    });
+%}
+
+###
+
+### 3.3 UPDATE SHIPMENT STATUS - IN TRANSIT
+PATCH {{host}}/api/v1/shipping/shipments/{{shipmentId}}/status?status=IN_TRANSIT
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should update status to IN_TRANSIT", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.status === "IN_TRANSIT", "Expected IN_TRANSIT status");
+        client.assert(response.body.shippedAt !== null, "Expected shippedAt to be set");
+    });
+%}
+
+###
+
+### 3.4 UPDATE SHIPMENT STATUS - OUT FOR DELIVERY
+PATCH {{host}}/api/v1/shipping/shipments/{{shipmentId}}/status?status=OUT_FOR_DELIVERY
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should update status to OUT_FOR_DELIVERY", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.status === "OUT_FOR_DELIVERY", "Expected OUT_FOR_DELIVERY");
+    });
+%}
+
+###
+
+### 3.5 UPDATE SHIPMENT STATUS - DELIVERED
+PATCH {{host}}/api/v1/shipping/shipments/{{shipmentId}}/status?status=DELIVERED
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should update status to DELIVERED", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.status === "DELIVERED", "Expected DELIVERED status");
+        client.assert(response.body.deliveredAt !== null, "Expected deliveredAt to be set");
+    });
+%}
+
+###
+
+### 3.6 GET SHIPMENTS BY ORDER
+GET {{host}}/api/v1/shipping/orders/1/shipments
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return shipments for order", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(Array.isArray(response.body), "Expected array");
+    });
+%}
+
+###
+
+### 3.7 TRACK SHIPMENT BY TRACKING NUMBER
+GET {{host}}/api/v1/shipping/shipments/track/1Z999AA10123456784
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should return shipment by tracking number", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.trackingNumber === "1Z999AA10123456784", "Expected tracking number");
+    });
+%}
+
+###
+
+### ==================================================
+### 4. AUTHORIZATION TESTS
+### ==================================================
+
+### 4.1 TRY WITHOUT TOKEN (should fail)
+GET {{host}}/api/v1/shipping/zones
+
+> {%
+    client.test("Should fail without token", function() {
+        client.assert(response.status === 401 || response.status === 403,
+            "Expected 401/403 without token");
+    });
+%}
+
+###
+
+### ==================================================
+### 5. ERROR CASES
+### ==================================================
+
+### 5.1 CREATE ZONE WITH DUPLICATE NAME (should fail)
+POST {{host}}/api/v1/shipping/zones
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Domestic USA",
+  "countries": "US",
+  "active": true
+}
+
+> {%
+    client.test("Duplicate zone should fail", function() {
+        client.assert(response.status === 500 || response.status === 400,
+            "Expected error for duplicate zone");
+    });
+%}
+
+###
+
+### 5.2 CREATE RATE FOR NON-EXISTENT ZONE (should fail)
+POST {{host}}/api/v1/shipping/rates
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "zoneId": 99999,
+  "name": "Test Rate",
+  "price": 5.99,
+  "minOrderAmount": 0,
+  "minDeliveryDays": 3,
+  "maxDeliveryDays": 5,
+  "active": true
+}
+
+> {%
+    client.test("Rate for non-existent zone should fail", function() {
+        client.assert(response.status === 500 || response.status === 404|| response.status === 400,
+            "Expected error for non-existent zone");
+    });
+%}
+
+###
+
+### ==================================================
+### 6. CLEANUP
+### ==================================================
+
+### 6.1 DELETE SHIPPING RATE
+DELETE {{host}}/api/v1/shipping/rates/{{standardRateId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should delete rate", function() {
+        client.assert(response.status === 204, "Expected 204 No Content");
+    });
+%}
+
+###
+
+### 6.2 DELETE SHIPPING ZONE
+DELETE {{host}}/api/v1/shipping/zones/{{internationalZoneId}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Should delete zone", function() {
+        client.assert(response.status === 204, "Expected 204 No Content");
+    });
+%}

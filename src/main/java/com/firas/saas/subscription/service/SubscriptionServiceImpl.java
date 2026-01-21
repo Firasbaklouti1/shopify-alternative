@@ -71,14 +71,15 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             }
             
             // Generate Invoice
-            invoiceRepository.save(Invoice.builder()
-                    .tenantId(tenantId)
+            Invoice invoice = Invoice.builder()
                     .amount(plan.getPrice())
                     .currency("USD")
                     .status("PAID")
                     .description("Subscription to " + plan.getName())
                     .issuedAt(LocalDateTime.now())
-                    .build());
+                    .build();
+            invoice.setTenantId(tenantId);
+            invoiceRepository.save(invoice);
         }
 
         // Cancel existing active subscription if any
@@ -89,13 +90,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 });
 
         Subscription subscription = Subscription.builder()
-                .tenantId(tenantId)
                 .plan(plan)
                 .startDate(LocalDateTime.now())
                 .endDate(LocalDateTime.now().plusMonths(1)) // Assuming monthly for now
                 .status(SubscriptionStatus.ACTIVE)
                 .autoRenew(true)
                 .build();
+        subscription.setTenantId(tenantId);
 
         return mapToResponse(subscriptionRepository.save(subscription));
     }

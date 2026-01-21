@@ -1,5 +1,6 @@
 package com.firas.saas.config;
 
+import com.firas.saas.app.security.AppTokenAuthFilter;
 import com.firas.saas.security.jwt.AuthTokenFilter;
 import com.firas.saas.security.service.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class SecurityConfig {
 
     private final UserDetailsServiceImpl userDetailsService;
     private final AuthTokenFilter authTokenFilter;
+    private final AppTokenAuthFilter appTokenAuthFilter;
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
@@ -51,10 +53,14 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth ->
                         auth.requestMatchers("/api/v1/auth/**").permitAll()
                                 .requestMatchers("/api/v1/tenants/**").permitAll() // Temp for initial onboarding
+                                .requestMatchers("/api/v1/apps/scopes").permitAll() // Public endpoint for available scopes
+                                .requestMatchers("/api/v1/app/**").permitAll() // App API auth is handled by AppTokenAuthFilter
                                 .anyRequest().authenticated()
                 );
 
         http.authenticationProvider(authenticationProvider());
+        // App token filter runs first for /api/v1/app/** routes
+        http.addFilterBefore(appTokenAuthFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

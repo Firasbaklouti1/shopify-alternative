@@ -1,7 +1,9 @@
 package com.firas.saas.order.service;
 
+import com.firas.saas.common.event.DomainEventPublisher;
 import com.firas.saas.order.dto.*;
 import com.firas.saas.order.entity.*;
+import com.firas.saas.order.exception.InvalidOrderStateTransitionException;
 import com.firas.saas.order.repository.CartRepository;
 import com.firas.saas.order.repository.OrderRepository;
 import com.firas.saas.product.entity.Product;
@@ -25,6 +27,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final DomainEventPublisher eventPublisher; // Observer pattern - cleaner approach
+    private final com.firas.saas.tenant.repository.TenantRepository tenantRepository;
 
     @Override
     @Transactional
@@ -148,6 +152,29 @@ public class OrderServiceImpl implements OrderService {
         // Clear cart after order placement
         cartRepository.delete(cart);
 
+        // Publish domain event (Observer pattern)
+        // The WebhookEventListener will handle webhook delivery
+        try {
+            String tenantSlug = tenantRepository.findById(tenantId)
+                    .map(com.firas.saas.tenant.entity.Tenant::getSlug)
+                    .orElse("unknown");
+            
+            java.util.Map<String, Object> data = java.util.Map.of(
+                    "id", savedOrder.getId(),
+                    "orderNumber", savedOrder.getOrderNumber(),
+                    "totalPrice", savedOrder.getTotalPrice(),
+                    "customerEmail", savedOrder.getCustomerEmail(),
+                    "status", savedOrder.getStatus()
+            );
+            
+            // Observer pattern: publish event, listeners handle it
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_CREATED,
+                    data, tenantId, tenantSlug);
+        } catch (Exception e) {
+            // Log but don't fail the transaction
+            System.err.println("Failed to publish ORDER_CREATED event: " + e.getMessage());
+        }
+
         return mapToOrderResponse(savedOrder);
     }
 
@@ -165,6 +192,72 @@ public class OrderServiceImpl implements OrderService {
         return orderRepository.findByOrderNumberAndTenantId(orderNumber, tenantId)
                 .map(this::mapToOrderResponse)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderResponse getOrderById(Long orderId, Long tenantId) {
+        return orderRepository.findByIdAndTenantId(orderId, tenantId)
+                .map(this::mapToOrderResponse)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse updateOrderStatus(Long orderId, OrderStatus status, Long tenantId) {
+        Order order = orderRepository.findByIdAndTenantId(orderId, tenantId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        // Validate state transition
+        OrderStatus currentStatus = order.getStatus();
+        if (!currentStatus.canTransitionTo(status)) {
+            throw new InvalidOrderStateTransitionException(currentStatus, status);
+        }
+
+        order.setStatus(status);
+        Order updatedOrder = orderRepository.save(order);
+
+        // Publish domain events (Observer pattern)
+        try {
+            String tenantSlug = tenantRepository.findById(tenantId)
+                    .map(com.firas.saas.tenant.entity.Tenant::getSlug)
+                    .orElse("unknown");
+
+            java.util.Map<String, Object> data = java.util.Map.of(
+                    "id", updatedOrder.getId(),
+                    "orderNumber", updatedOrder.getOrderNumber(),
+                    "status", updatedOrder.getStatus(),
+                    "previousStatus", currentStatus
+            );
+
+            // Publish general update event
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_UPDATED,
+                    data, tenantId, tenantSlug);
+
+            // Publish specific status events
+            com.firas.saas.webhook.entity.Webhook.WebhookEvent specificEvent = switch (status) {
+                case PAID -> com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_PAID;
+                case DELIVERED -> com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_FULFILLED;
+                case CANCELLED -> com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_CANCELLED;
+                default -> null;
+            };
+
+            if (specificEvent != null) {
+                eventPublisher.publish(specificEvent, data, tenantId, tenantSlug);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to publish order status events: " + e.getMessage());
+        }
+
+        return mapToOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderResponse> getAllOrders(Long tenantId) {
+        return orderRepository.findAllByTenantId(tenantId).stream()
+                .map(this::mapToOrderResponse)
+                .collect(Collectors.toList());
     }
 
     private CartResponse mapToCartResponse(Cart cart) {
