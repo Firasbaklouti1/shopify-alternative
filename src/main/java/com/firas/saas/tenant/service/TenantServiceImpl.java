@@ -46,6 +46,14 @@ public class TenantServiceImpl implements TenantService {
 
     @Override
     @Transactional(readOnly = true)
+    public TenantResponse getTenantById(Long id) {
+        return tenantRepository.findById(id)
+                .map(this::mapToResponse)
+                .orElseThrow(() -> new TenantNotFoundException("Tenant not found with id: " + id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public TenantResponse getTenantBySlug(String slug) {
         return tenantRepository.findBySlug(slug)
                 .map(this::mapToResponse)

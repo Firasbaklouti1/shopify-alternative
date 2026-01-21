@@ -30,6 +30,7 @@ The system follows a **Modular Monolith** architecture built with Spring Boot. E
 | **Analytics** | Dashboard stats and sales reports. | [Analytics Module](src/main/java/com/firas/saas/analytics/README.md) |
 | **Webhook** | External integrations and event notifications. | [Webhook Module](src/main/java/com/firas/saas/webhook/README.md) |
 | **App Platform** | Third-party app registration, installation, scoped tokens. | [App Platform Module](src/main/java/com/firas/saas/app/README.md) |
+| **Storefront** | JSON-driven website generation, themes, layouts. | [Storefront Module](src/main/java/com/firas/saas/storefront/README.md) |
 
 ## 🎯 Design Patterns Used
 
@@ -106,6 +107,10 @@ erDiagram
 | App | ❌ | Global (platform-wide apps) |
 | AppInstallation | ✅ | Extends TenantEntity |
 | AppAccessToken | ✅ | Extends TenantEntity |
+| StoreSettings | ✅ | Extends TenantEntity |
+| PageLayout | ✅ | Extends TenantEntity |
+| PageLayoutVersion | ✅ | Extends TenantEntity |
+| Theme | ❌ | Global (platform-wide themes) |
 | SubscriptionPlan | ❌ | Global (shared across tenants) |
 
 ## 📚 How to Navigate
@@ -114,5 +119,5 @@ Click on the **Documentation Link** for each module above to view detailed schem
 ## 📝 Last Updated
 
 - **Date**: January 21, 2026
-- **Changes**: Added App Platform module, Observer Pattern for webhooks
+- **Changes**: Added Storefront module (JSON-driven website generation)
 
