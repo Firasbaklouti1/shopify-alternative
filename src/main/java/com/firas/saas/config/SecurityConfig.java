@@ -52,9 +52,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
                         auth.requestMatchers("/api/v1/auth/**").permitAll()
+                                .requestMatchers("/api/v1/tenants/my").authenticated() // Requires auth to get own tenant
                                 .requestMatchers("/api/v1/tenants/**").permitAll() // Temp for initial onboarding
                                 .requestMatchers("/api/v1/apps/scopes").permitAll() // Public endpoint for available scopes
                                 .requestMatchers("/api/v1/app/**").permitAll() // App API auth is handled by AppTokenAuthFilter
+                                .requestMatchers("/api/v1/storefront/**").permitAll() // Public storefront API (no auth)
                                 .anyRequest().authenticated()
                 );
 

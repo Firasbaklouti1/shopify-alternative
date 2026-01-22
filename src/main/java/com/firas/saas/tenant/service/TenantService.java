@@ -8,6 +8,7 @@ import java.util.List;
 
 public interface TenantService {
     TenantResponse createTenant(TenantCreateRequest request);
+    TenantResponse getTenantById(Long id);
     TenantResponse getTenantBySlug(String slug);
     List<TenantResponse> getAllTenants();
     TenantResponse registerMerchant(MerchantSignupRequest request);
