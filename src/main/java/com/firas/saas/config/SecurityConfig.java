@@ -13,6 +13,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -48,7 +49,8 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable())
+        http.cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
                         auth.requestMatchers("/api/v1/auth/**").permitAll()
@@ -57,6 +59,7 @@ public class SecurityConfig {
                                 .requestMatchers("/api/v1/apps/scopes").permitAll() // Public endpoint for available scopes
                                 .requestMatchers("/api/v1/app/**").permitAll() // App API auth is handled by AppTokenAuthFilter
                                 .requestMatchers("/api/v1/storefront/**").permitAll() // Public storefront API (no auth)
+                                .requestMatchers("/uploads/**").permitAll() // Static uploads
                                 .anyRequest().authenticated()
                 );
 

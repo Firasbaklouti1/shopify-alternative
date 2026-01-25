@@ -1,0 +1,397 @@
+### Phase 2 Storefront E2E Test Setup
+### Run these requests in order to set up test data
+
+### =============================================
+### 1. Register a new merchant
+### =============================================
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "demo@store.com",
+  "password": "password123",
+  "firstName": "Demo",
+  "lastName": "Merchant",
+  "tenantName": "Demo Store",
+  "tenantSlug": "demo"
+}
+
+### =============================================
+### 2. Login to get JWT token
+### =============================================
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "demo@store.com",
+  "password": "password123"
+}
+
+### Copy the token from the response and replace {{token}} below
+
+### =============================================
+### 3. Create a category
+### =============================================
+POST http://localhost:8080/api/v1/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Electronics",
+  "slug": "electronics",
+  "description": "Electronic devices and gadgets"
+}
+
+### =============================================
+### 4. Create another category
+### =============================================
+POST http://localhost:8080/api/v1/categories
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Clothing",
+  "slug": "clothing",
+  "description": "Fashion and apparel"
+}
+
+### =============================================
+### 5. Create a product with variant
+### =============================================
+POST http://localhost:8080/api/v1/products
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Wireless Headphones",
+  "slug": "wireless-headphones",
+  "description": "Premium wireless headphones with noise cancellation. Experience crystal-clear audio with up to 30 hours of battery life.",
+  "categoryId": 1,
+  "active": true,
+  "variants": [
+    {
+      "name": "Black",
+      "sku": "WH-001-BLK",
+      "price": 199.99,
+      "stockLevel": 50
+    },
+    {
+      "name": "White",
+      "sku": "WH-001-WHT",
+      "price": 199.99,
+      "stockLevel": 30
+    }
+  ]
+}
+
+### =============================================
+### 6. Create another product
+### =============================================
+POST http://localhost:8080/api/v1/products
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Smart Watch Pro",
+  "slug": "smart-watch-pro",
+  "description": "Advanced smartwatch with health monitoring, GPS, and 7-day battery life.",
+  "categoryId": 1,
+  "active": true,
+  "variants": [
+    {
+      "name": "42mm - Black",
+      "sku": "SW-PRO-42-BLK",
+      "price": 349.99,
+      "stockLevel": 25
+    },
+    {
+      "name": "46mm - Silver",
+      "sku": "SW-PRO-46-SLV",
+      "price": 399.99,
+      "stockLevel": 20
+    }
+  ]
+}
+
+### =============================================
+### 7. Create a clothing product
+### =============================================
+POST http://localhost:8080/api/v1/products
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Classic T-Shirt",
+  "slug": "classic-tshirt",
+  "description": "Comfortable cotton t-shirt, perfect for everyday wear.",
+  "categoryId": 2,
+  "active": true,
+  "variants": [
+    {
+      "name": "Small - Navy",
+      "sku": "TS-CLS-S-NVY",
+      "price": 29.99,
+      "stockLevel": 100
+    },
+    {
+      "name": "Medium - Navy",
+      "sku": "TS-CLS-M-NVY",
+      "price": 29.99,
+      "stockLevel": 150
+    },
+    {
+      "name": "Large - Navy",
+      "sku": "TS-CLS-L-NVY",
+      "price": 29.99,
+      "stockLevel": 100
+    }
+  ]
+}
+
+### =============================================
+### 8. Create store settings (publish the store)
+### =============================================
+POST http://localhost:8080/api/v1/stores/settings
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "checkoutMode": "BOTH",
+  "published": true,
+  "contactEmail": "support@demostore.com",
+  "announcementText": "Free shipping on orders over $50!",
+  "announcementEnabled": true,
+  "globalStyles": {
+    "primaryColor": "#000000",
+    "secondaryColor": "#4B5563",
+    "fontFamily": "Inter, sans-serif"
+  },
+  "seoDefaults": {
+    "titleTemplate": "%s | Demo Store",
+    "defaultDescription": "Welcome to Demo Store - Quality products at great prices"
+  },
+  "socialLinks": {
+    "facebook": "https://facebook.com/demostore",
+    "instagram": "https://instagram.com/demostore",
+    "twitter": "https://twitter.com/demostore"
+  }
+}
+
+### =============================================
+### 9. Create HOME page layout
+### =============================================
+POST http://localhost:8080/api/v1/stores/layouts
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "pageType": "HOME",
+  "name": "Home Page",
+  "layoutJson": {
+    "name": "Home Page",
+    "type": "home",
+    "sections": {
+      "announcement": {
+        "type": "announcement-bar",
+        "settings": {
+          "text": "🎉 Free shipping on orders over $50!",
+          "link": "/store/demo/products",
+          "link_text": "Shop Now",
+          "background_color": "#000000",
+          "text_color": "#ffffff"
+        }
+      },
+      "hero": {
+        "type": "hero-banner",
+        "settings": {
+          "title": "Welcome to Demo Store",
+          "subtitle": "Discover amazing products at unbeatable prices",
+          "cta_text": "Shop Now",
+          "cta_link": "/store/demo/products",
+          "secondary_cta_text": "View Collections",
+          "secondary_cta_link": "/store/demo/collections",
+          "height": "large",
+          "text_alignment": "center"
+        }
+      },
+      "featured-products": {
+        "type": "product-grid",
+        "settings": {
+          "title": "Featured Products",
+          "subtitle": "Check out our bestsellers",
+          "limit": 4,
+          "columns": 4,
+          "show_price": true,
+          "show_sale_badge": true
+        }
+      },
+      "collections": {
+        "type": "collection-list",
+        "settings": {
+          "title": "Shop by Category",
+          "columns": 2,
+          "card_style": "overlay"
+        }
+      },
+      "about": {
+        "type": "image-with-text",
+        "settings": {
+          "title": "About Our Store",
+          "subtitle": "Our Story",
+          "content": "<p>We're dedicated to bringing you the best products at the best prices. Quality and customer satisfaction are our top priorities.</p>",
+          "cta_text": "Learn More",
+          "cta_link": "/store/demo/pages/about",
+          "image_position": "left"
+        }
+      },
+      "testimonials": {
+        "type": "testimonials",
+        "settings": {
+          "title": "What Our Customers Say",
+          "layout": "grid",
+          "columns": 3,
+          "show_rating": true,
+          "testimonials": [
+            {
+              "author": "Sarah J.",
+              "role": "Verified Buyer",
+              "content": "Amazing quality and fast shipping! Will definitely order again.",
+              "rating": 5
+            },
+            {
+              "author": "Michael T.",
+              "role": "Verified Buyer",
+              "content": "Best purchase I've made this year. Highly recommended.",
+              "rating": 5
+            },
+            {
+              "author": "Emma R.",
+              "role": "Verified Buyer",
+              "content": "Great customer service and the product exceeded my expectations.",
+              "rating": 4
+            }
+          ]
+        }
+      },
+      "newsletter": {
+        "type": "newsletter",
+        "settings": {
+          "title": "Join Our Newsletter",
+          "subtitle": "Subscribe to get special offers, free giveaways, and once-in-a-lifetime deals.",
+          "button_text": "Subscribe",
+          "layout": "inline"
+        }
+      },
+      "footer": {
+        "type": "footer",
+        "settings": {
+          "tagline": "Quality products, unbeatable prices.",
+          "show_social": true,
+          "social_facebook": "https://facebook.com/demostore",
+          "social_instagram": "https://instagram.com/demostore",
+          "social_twitter": "https://twitter.com/demostore",
+          "show_payment_icons": true
+        }
+      }
+    },
+    "order": ["announcement", "hero", "featured-products", "collections", "about", "testimonials", "newsletter", "footer"]
+  },
+  "published": true
+}
+
+### =============================================
+### 10. Create PRODUCT page layout
+### =============================================
+POST http://localhost:8080/api/v1/stores/layouts
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "pageType": "PRODUCT",
+  "name": "Product Page",
+  "layoutJson": {
+    "name": "Product Page",
+    "type": "product",
+    "sections": {
+      "product-main": {
+        "type": "product-main",
+        "settings": {
+          "gallery_position": "left",
+          "show_vendor": true,
+          "show_sku": true,
+          "show_quantity_selector": true
+        }
+      },
+      "related-products": {
+        "type": "product-grid",
+        "settings": {
+          "title": "You May Also Like",
+          "limit": 4,
+          "columns": 4
+        }
+      }
+    },
+    "order": ["product-main", "related-products"]
+  },
+  "published": true
+}
+
+### =============================================
+### 11. Create COLLECTION page layout
+### =============================================
+POST http://localhost:8080/api/v1/stores/layouts
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "pageType": "COLLECTION",
+  "name": "Collection Page",
+  "layoutJson": {
+    "name": "Collection Page",
+    "type": "collection",
+    "sections": {
+      "products": {
+        "type": "product-grid",
+        "settings": {
+          "columns": 4,
+          "show_price": true,
+          "show_sale_badge": true
+        }
+      }
+    },
+    "order": ["products"]
+  },
+  "published": true
+}
+
+### =============================================
+### VERIFICATION: Test the public storefront API
+### =============================================
+
+### Get store settings (public - no auth needed)
+GET http://localhost:8080/api/v1/storefront/demo/settings
+
+###
+
+### Get home page layout (public)
+GET http://localhost:8080/api/v1/storefront/demo/layout?page=home
+
+###
+
+### Get products (public)
+GET http://localhost:8080/api/v1/storefront/demo/products
+
+###
+
+### Get collections (public)
+GET http://localhost:8080/api/v1/storefront/demo/collections
+
+###
+
+### Get single product (public)
+GET http://localhost:8080/api/v1/storefront/demo/products/wireless-headphones
+
+###
+
+### Get component schemas (public)
+GET http://localhost:8080/api/v1/storefront/demo/schema/components

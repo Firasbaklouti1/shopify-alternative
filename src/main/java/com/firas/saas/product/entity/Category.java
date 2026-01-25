@@ -22,4 +22,6 @@ public class Category extends TenantEntity {
     private String slug;
 
     private String description;
+
+    private String imageUrl;
 }

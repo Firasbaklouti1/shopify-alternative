@@ -21,6 +21,8 @@ public class ProductRequest {
 
     private String description;
 
+    private String imageUrl;
+
     private Long categoryId;
 
     @NotEmpty(message = "At least one variant is required")

@@ -16,4 +16,6 @@ public class CategoryRequest {
     private String slug;
 
     private String description;
+
+    private String imageUrl;
 }

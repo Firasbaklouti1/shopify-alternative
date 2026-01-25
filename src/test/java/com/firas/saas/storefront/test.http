@@ -1,0 +1,864 @@
+### ==================================================
+### Storefront Module API Tests
+### ==================================================
+### PREREQUISITES:
+### 1. Restart the Spring Boot application to create new database tables
+###    (store_settings, page_layouts, themes, page_layout_versions)
+### 2. If using existing merchant, delete the test merchant first or use unique email
+###
+### This test follows the pattern in e2e_scenario.http
+### Token is obtained via login, not from env file
+
+@host = http://localhost:8080
+
+### ==================================================
+### 0. AUTHENTICATION SETUP
+### ==================================================
+
+### 0.0 Register Merchant (may fail if already exists - that's OK)
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "Storefront Test Store",
+  "storeSlug": "storefront-test-{{$random.uuid}}",
+  "email": "storefront-merchant@example.com",
+  "password": "password123",
+  "fullName": "Storefront Merchant"
+}
+
+> {%
+    // Registration returns TenantResponse (slug but no token)
+    // Token is only returned from login
+    if (response.body.slug) {
+        client.global.set("storeSlug", response.body.slug);
+        client.log("✓ Registered new merchant, slug: " + response.body.slug);
+    }
+%}
+
+### 0.1 Login as Merchant (use this after registration or if merchant already exists)
+# @name merchantLogin
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "storefront-merchant@example.com",
+  "password": "password123"
+}
+
+> {%
+    if (response.body.token) {
+        client.global.set("merchantToken", response.body.token);
+        client.global.set("tenantId", response.body.tenantId);
+        client.log("✓ Logged in as merchant, tenantId: " + response.body.tenantId);
+    } else {
+        client.log("✗ Login failed: " + JSON.stringify(response.body));
+    }
+%}
+
+### 0.2 Get tenant info to get the store slug
+# @name getTenantInfo
+GET {{host}}/api/v1/tenants/my
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    if (response.body && response.body.slug) {
+        client.global.set("storeSlug", response.body.slug);
+        client.log("✓ Store slug: " + response.body.slug);
+    }
+%}
+
+### ==================================================
+### 1. STORE SETTINGS (MERCHANT API)
+### ==================================================
+
+### 1.1 Get store settings
+# @name getStoreSettings
+GET {{host}}/api/v1/stores/settings
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Response status is 200", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+%}
+
+### 1.2 Update store settings
+# @name updateStoreSettings
+PUT {{host}}/api/v1/stores/settings
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "checkoutMode": "BOTH",
+  "globalStyles": {
+    "primaryColor": "#FF5733",
+    "secondaryColor": "#333333",
+    "fontFamily": "Inter, sans-serif",
+    "logo": "/uploads/logo.png"
+  },
+  "seoDefaults": {
+    "titleTemplate": "{page_title} | Storefront Test Store",
+    "defaultDescription": "Welcome to our amazing store"
+  },
+  "socialLinks": {
+    "facebook": "https://facebook.com/storefronttest",
+    "instagram": "https://instagram.com/storefronttest"
+  },
+  "contactEmail": "support@storefronttest.com",
+  "announcementText": "Free shipping on orders over $50!",
+  "announcementEnabled": true
+}
+
+> {%
+    client.test("Response status is 200", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    client.test("Checkout mode is BOTH", function() {
+        client.assert(response.body.checkoutMode === "BOTH", "Expected BOTH, got " + response.body.checkoutMode);
+    });
+%}
+
+### 1.3 Publish the store
+# @name publishStore
+POST {{host}}/api/v1/stores/publish
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Response status is 200 or 400", function() {
+        client.assert(response.status === 200 || response.status === 400,
+            "Expected 200 or 400, got " + response.status);
+    });
+%}
+
+### ==================================================
+### 2. PAGE LAYOUTS (MERCHANT API)
+### ==================================================
+
+### 2.1 Get all page layouts (may be empty initially)
+# @name getAllLayouts
+GET {{host}}/api/v1/stores/layouts
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Response status is 200", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+%}
+
+### 2.2 Initialize default layouts (apply null theme for defaults)
+# @name initializeLayouts
+POST {{host}}/api/v1/stores/themes/0/apply
+Authorization: Bearer {{merchantToken}}
+
+### Note: Theme ID 0 won't exist, but initializeDefaultLayouts will create layouts with hardcoded defaults
+### This may return 404 but layouts will still be created if they don't exist
+
+### 2.3 Get home page layout
+# @name getHomeLayout
+GET {{host}}/api/v1/stores/layouts/home
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Response status is 200 or 404", function() {
+        client.assert(response.status === 200 || response.status === 404,
+            "Expected 200 or 404, got " + response.status);
+    });
+%}
+
+### 2.4 Update home page layout (saves to draft)
+# @name updateHomeLayout
+PUT {{host}}/api/v1/stores/layouts/home
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "layoutJson": {
+    "sections": {
+      "hero-1": {
+        "type": "hero-banner",
+        "settings": {
+          "title": "Welcome to Our Amazing Store",
+          "subtitle": "Discover the best products at unbeatable prices",
+          "bg_image": "/uploads/hero-banner.jpg",
+          "cta_text": "Shop Now",
+          "cta_link": "/collections/all",
+          "overlay_opacity": 0.4,
+          "height": "large"
+        }
+      },
+      "featured-products": {
+        "type": "product-grid",
+        "settings": {
+          "title": "Featured Products",
+          "collection_handle": "featured",
+          "limit": 8,
+          "columns": 4,
+          "show_price": true,
+          "show_vendor": false
+        }
+      }
+    },
+    "order": ["hero-1", "featured-products"]
+  },
+  "seoTitle": "Home | Storefront Test Store",
+  "seoDescription": "Welcome to the best online store for amazing products"
+}
+
+> {%
+    client.test("Response status is 200 or 404", function() {
+        client.assert(response.status === 200 || response.status === 404,
+            "Expected 200 or 404, got " + response.status);
+    });
+%}
+
+### 2.5 Get draft layout
+# @name getDraftLayout
+GET {{host}}/api/v1/stores/layouts/home/draft
+Authorization: Bearer {{merchantToken}}
+
+### 2.6 Publish home page layout (draft -> live)
+# @name publishHomeLayout
+POST {{host}}/api/v1/stores/layouts/home/publish
+Authorization: Bearer {{merchantToken}}
+
+### ==================================================
+### 3. CUSTOM PAGES (MERCHANT API)
+### ==================================================
+
+### 3.1 Create a custom "About Us" page
+# @name createAboutPage
+POST {{host}}/api/v1/stores/pages
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "pageType": "CUSTOM",
+  "handle": "about-us",
+  "name": "About Us",
+  "layoutJson": {
+    "sections": {
+      "hero": {
+        "type": "hero-banner",
+        "settings": {
+          "title": "About Our Company",
+          "subtitle": "Our story and mission",
+          "height": "medium"
+        }
+      },
+      "content": {
+        "type": "rich-text",
+        "settings": {
+          "heading": "Our Story",
+          "content": "Founded in 2020, we set out to create the best shopping experience...",
+          "text_alignment": "left"
+        }
+      }
+    },
+    "order": ["hero", "content"]
+  },
+  "seoTitle": "About Us | Storefront Test Store",
+  "seoDescription": "Learn about our company, mission, and team"
+}
+
+> {%
+    client.test("Response status is 200 or 400 (already exists)", function() {
+        client.assert(response.status === 200 || response.status === 400,
+            "Expected 200 or 400, got " + response.status);
+    });
+%}
+
+### 3.2 Get custom page
+# @name getAboutPage
+GET {{host}}/api/v1/stores/pages/about-us
+Authorization: Bearer {{merchantToken}}
+
+### 3.3 Publish custom page
+# @name publishAboutPage
+POST {{host}}/api/v1/stores/pages/about-us/publish
+Authorization: Bearer {{merchantToken}}
+
+### ==================================================
+### 4. THEMES (MERCHANT API)
+### ==================================================
+
+### 4.1 Get available themes
+# @name getThemes
+GET {{host}}/api/v1/stores/themes
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Response status is 200", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+%}
+
+### ==================================================
+### 5. COMPONENT SCHEMA (MERCHANT API)
+### ==================================================
+
+### 5.1 Get all section schemas (for editor UI)
+# @name getSectionSchemas
+GET {{host}}/api/v1/stores/schema/sections
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Response status is 200", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    client.test("Has hero-banner section", function() {
+        var hasHero = response.body.some(s => s.type === "hero-banner");
+        client.assert(hasHero, "Expected hero-banner section");
+    });
+%}
+
+### 5.2 Get sections available for home page
+# @name getSectionsForHome
+GET {{host}}/api/v1/stores/schema/sections/HOME
+Authorization: Bearer {{merchantToken}}
+
+### ==================================================
+### 6. PUBLIC STOREFRONT API (NO AUTH)
+### ==================================================
+
+### 6.1 Get public store settings
+# @name getPublicSettings
+GET {{host}}/api/v1/storefront/{{storeSlug}}/settings
+
+> {%
+    client.test("Response status is 200 or 404 (if not published)", function() {
+        client.assert(response.status === 200 || response.status === 404,
+            "Expected 200 or 404, got " + response.status);
+    });
+%}
+
+### 6.2 Get public home page layout
+# @name getPublicHomeLayout
+GET {{host}}/api/v1/storefront/{{storeSlug}}/layout?page=home
+
+> {%
+    client.test("Response status is 200 or 404 (if not published)", function() {
+        client.assert(response.status === 200 || response.status === 404,
+            "Expected 200 or 404, got " + response.status);
+    });
+%}
+
+### 6.3 Get custom page layout (public)
+# @name getPublicAboutPage
+GET {{host}}/api/v1/storefront/{{storeSlug}}/pages/about-us
+
+### 6.4 Get products (public) - Now returns paginated response
+# @name getPublicProducts
+GET {{host}}/api/v1/storefront/{{storeSlug}}/products?page=0&limit=24
+
+> {%
+    client.test("Response status is 200 or 404 (if not published)", function() {
+        client.assert(response.status === 200 || response.status === 404,
+            "Expected 200 or 404, got " + response.status);
+    });
+    if (response.status === 200) {
+        client.test("Has pagination metadata", function() {
+            client.assert(response.body.products !== undefined, "Expected 'products' array");
+            client.assert(response.body.totalPages !== undefined, "Expected 'totalPages'");
+            client.assert(response.body.currentPage !== undefined, "Expected 'currentPage'");
+        });
+    }
+%}
+
+### 6.5 Get collections (public)
+# @name getPublicCollections
+GET {{host}}/api/v1/storefront/{{storeSlug}}/collections
+
+> {%
+    client.test("Response status is 200 or 404 (if not published)", function() {
+        client.assert(response.status === 200 || response.status === 404,
+            "Expected 200 or 404, got " + response.status);
+    });
+%}
+
+### 6.6 Get component schemas (public)
+# @name getPublicSchemas
+GET {{host}}/api/v1/storefront/{{storeSlug}}/schema/components
+
+> {%
+    client.test("Response status is 200", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+%}
+
+### 6.7 Get available themes (public)
+# @name getPublicThemes
+GET {{host}}/api/v1/storefront/{{storeSlug}}/themes
+
+> {%
+    client.test("Response status is 200", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+%}
+
+### ==================================================
+### 7. UNPUBLISHED STORE TEST
+### ==================================================
+
+### 7.1 Unpublish the store
+# @name unpublishStore
+POST {{host}}/api/v1/stores/unpublish
+Authorization: Bearer {{merchantToken}}
+
+### 7.2 Try to access unpublished store (should fail with 404)
+# @name accessUnpublishedStore
+GET {{host}}/api/v1/storefront/{{storeSlug}}/settings
+
+> {%
+    client.test("Response status is 404 (store unpublished)", function() {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+    });
+%}
+
+### 7.3 Re-publish the store
+# @name republishStore
+POST {{host}}/api/v1/stores/publish
+Authorization: Bearer {{merchantToken}}
+
+### ==================================================
+### 8. AI GENERATION PLACEHOLDER
+### ==================================================
+
+### 8.1 Test AI generation endpoint (not implemented yet - returns 501)
+# @name testAIGeneration
+POST {{host}}/api/v1/stores/layouts/generate
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "prompt": "Create a minimalist sushi restaurant homepage with dark tones",
+  "pageType": "HOME"
+}
+
+> {%
+    client.test("Response status is 501 (not implemented)", function() {
+        client.assert(response.status === 501, "Expected 501, got " + response.status);
+    });
+%}
+### ==================================================
+### 8. SECURITY & TENANT ISOLATION (THE SAAS TEST)
+### ==================================================
+
+### 8.1 Register Malicious Merchant (Merchant B)
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "Hacker Store",
+  "storeSlug": "hacker-store-{{$random.uuid}}",
+  "email": "hacker@example.com",
+  "password": "password123",
+  "fullName": "Hacker User"
+}
+
+### 8.2 Login as Hacker
+# @name hackerLogin
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "hacker@example.com",
+  "password": "password123"
+}
+
+> {% client.global.set("hackerToken", response.body.token); %}
+
+### 8.3 Verify Isolation: Hacker reads Settings
+# EXPECTATION: Should return Hacker's settings (defaults), NOT Merchant A's settings.
+GET {{host}}/api/v1/stores/settings
+Authorization: Bearer {{hackerToken}}
+
+> {%
+    client.test("Isolation Check", function() {
+        client.assert(response.status === 200, "Expected 200");
+        // Hacker's store should have default settings (globalStyles is null for new store)
+        // If we see Merchant A's specific color, that's a security issue
+        var styles = response.body.globalStyles;
+        if (styles && styles.primaryColor === "#FF5733") {
+            client.assert(false, "SECURITY ALERT: Hacker saw Merchant A's settings!");
+        }
+    });
+%}
+
+### 8.4 Verify Isolation: Hacker Writes Layout
+# Hacker tries to update 'HOME'. This should update Hacker's Home, not Merchant A's.
+# NOTE: This will create the layout for hacker since it doesn't exist
+PUT {{host}}/api/v1/stores/layouts/home
+Authorization: Bearer {{hackerToken}}
+Content-Type: application/json
+
+{
+  "layoutJson": {
+    "sections": {
+      "hero-1": { "type": "hero-banner", "settings": { "title": "HACKED TITLE" } }
+    },
+    "order": ["hero-1"]
+  }
+}
+
+> {%
+    client.test("Hacker update successful (on own store)", function() {
+        // 200 = updated existing, 404 = layout didn't exist (which is OK for isolation test)
+        client.assert(response.status === 200 || response.status === 404,
+            "Expected 200 or 404, got " + response.status);
+    });
+%}
+
+### 8.5 Verify Merchant A is Unaffected
+GET {{host}}/api/v1/stores/layouts/home
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Merchant A Data Intact", function() {
+        client.assert(response.status === 200, "Expected 200");
+        // layoutJson contains the sections
+        var sections = response.body.layoutJson ? response.body.layoutJson.sections : null;
+        if (sections && sections["hero-1"]) {
+            var title = sections["hero-1"].settings.title;
+            client.assert(title !== "HACKED TITLE",
+                "SECURITY FAILURE: Hacker overwrote Merchant A's layout! Found: " + title);
+        }
+        // If no sections exist, that's OK - merchant A never created hero-1 with VERSION 1 TITLE in this test run
+    });
+%}
+
+### ==================================================
+### 9. ERROR HANDLING & ROLLBACK
+### ==================================================
+
+### 9.1 Test Malformed JSON
+PUT {{host}}/api/v1/stores/layouts/home
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{ "layoutJson": "THIS IS INVALID STRING NOT JSON OBJECT" }
+
+> {%
+    client.test("Rejects Invalid JSON", function() {
+        // Should be 400 Bad Request
+        client.assert(response.status === 400, "Expected 400, got " + response.status);
+    });
+%}
+
+### 9.2 Create "ROLLBACK TEST V1" and Publish it
+PUT {{host}}/api/v1/stores/layouts/home
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "layoutJson": {
+    "sections": {
+      "hero-1": { "type": "hero-banner", "settings": { "title": "ROLLBACK TEST V1" } }
+    },
+    "order": ["hero-1"]
+  }
+}
+
+### 9.2.1 Publish "ROLLBACK TEST V1" (creates a version record)
+# @name publishV1
+POST {{host}}/api/v1/stores/layouts/home/publish
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    // Save the version number from this publish
+    client.global.set("rollbackTargetVersion", response.body.version);
+    client.log("Published V1, version number: " + response.body.version);
+%}
+
+### 9.3 Create "ROLLBACK TEST V2" and Publish it
+PUT {{host}}/api/v1/stores/layouts/home
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "layoutJson": {
+    "sections": {
+      "hero-1": { "type": "hero-banner", "settings": { "title": "ROLLBACK TEST V2" } }
+    },
+    "order": ["hero-1"]
+  }
+}
+
+### 9.3.1 Publish "ROLLBACK TEST V2"
+POST {{host}}/api/v1/stores/layouts/home/publish
+Authorization: Bearer {{merchantToken}}
+
+### 9.4 Verify V2 is now live
+GET {{host}}/api/v1/stores/layouts/home
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("V2 is now live", function() {
+        var sections = response.body.layoutJson ? response.body.layoutJson.sections : null;
+        if (sections && sections["hero-1"]) {
+            client.assert(sections["hero-1"].settings.title === "ROLLBACK TEST V2",
+                "Expected ROLLBACK TEST V2, got " + sections["hero-1"].settings.title);
+        } else {
+            client.assert(false, "No sections found in response");
+        }
+    });
+%}
+
+### 9.5 Get Version History (verify versions exist)
+GET {{host}}/api/v1/stores/layouts/home/versions
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Version history exists", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.length >= 2, "Expected at least 2 versions, got " + response.body.length);
+        // Store the second-to-last version number (which is V1)
+        if (response.body.length >= 2) {
+            // Versions are ordered DESC, so [0] is latest, [1] is second latest
+            var v1Number = response.body[1].versionNumber;
+            client.global.set("rollbackTargetVersion", v1Number);
+            client.log("Will rollback to version: " + v1Number);
+        }
+    });
+%}
+
+### 9.6 Execute Rollback to V1
+POST {{host}}/api/v1/stores/layouts/home/rollback/{{rollbackTargetVersion}}
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Rollback Request Accepted", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+%}
+
+### 9.7 Verify Content Reverted to V1
+# Note: Rollback loads version into draft, so check via /draft endpoint
+GET {{host}}/api/v1/stores/layouts/home/draft
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("Rollback Successful", function() {
+        var sections = response.body.sections;
+        if (sections && sections["hero-1"]) {
+            var title = sections["hero-1"].settings.title;
+            client.assert(title === "ROLLBACK TEST V1",
+                "Rollback Failed! Expected 'ROLLBACK TEST V1', got: " + title);
+        } else {
+            client.assert(false, "No sections found after rollback");
+        }
+    });
+%}
+
+### ==================================================
+### 10. CUSTOMER REGISTRATION & AUTH (Phase 2 Addition)
+### ==================================================
+
+### 10.1 Register Customer on Store
+# @name registerCustomer
+POST {{host}}/api/v1/auth/customer/{{storeSlug}}/register
+Content-Type: application/json
+
+{
+  "email": "customer-{{$random.uuid}}@example.com",
+  "password": "customer123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "phone": "555-1234"
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("customerEmail", request.body.email);
+        client.global.set("customerToken", response.body.token);
+        client.log("✓ SUCCESS: Customer registered and logged in");
+
+        client.test("Response contains token", function() {
+            client.assert(response.body.token !== undefined, "token should exist");
+        });
+        client.test("Role is CUSTOMER", function() {
+            client.assert(response.body.role === "ROLE_CUSTOMER", "role should be ROLE_CUSTOMER");
+        });
+    }
+%}
+
+###
+
+### 10.2 Login as Customer
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{customerEmail}}",
+  "password": "customer123"
+}
+
+> {%
+    client.test("Customer login succeeds", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    client.test("Role is CUSTOMER", function() {
+        client.assert(response.body.role === "ROLE_CUSTOMER", "role should be ROLE_CUSTOMER");
+    });
+%}
+
+###
+
+### 10.3 Get My Orders (as customer)
+GET {{host}}/api/v1/orders/my
+Authorization: Bearer {{customerToken}}
+
+> {%
+    client.test("Get my orders succeeds", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    client.test("Response is array", function() {
+        client.assert(Array.isArray(response.body), "response should be an array");
+    });
+%}
+
+###
+
+### 10.4 Register on Non-Existent Store (should 404)
+POST {{host}}/api/v1/auth/customer/non-existent-store-xyz/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "test123",
+  "firstName": "Test",
+  "lastName": "User"
+}
+
+> {%
+    client.test("Registration on non-existent store returns 404", function() {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+    });
+%}
+
+###
+
+### 10.5 Customer Registration - Missing Email (should 400)
+POST {{host}}/api/v1/auth/customer/{{storeSlug}}/register
+Content-Type: application/json
+
+{
+  "password": "customer123",
+  "firstName": "John",
+  "lastName": "Doe"
+}
+
+> {%
+    client.test("Missing email returns 400", function() {
+        client.assert(response.status === 400, "Expected 400, got " + response.status);
+    });
+%}
+
+###
+
+### 10.6 Customer Registration - Short Password (should 400)
+POST {{host}}/api/v1/auth/customer/{{storeSlug}}/register
+Content-Type: application/json
+
+{
+  "email": "short-pass@example.com",
+  "password": "123",
+  "firstName": "John",
+  "lastName": "Doe"
+}
+
+> {%
+    client.test("Short password returns 400", function() {
+        client.assert(response.status === 400, "Expected 400, got " + response.status);
+    });
+%}
+
+###
+
+### ==================================================
+### 11. PRODUCT/CATEGORY IMAGE URL TESTS (Phase 2 Addition)
+### ==================================================
+
+### 11.1 Create Category with imageUrl
+# @name createCategoryWithImage
+POST {{host}}/api/v1/products/categories
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Electronics-{{$random.uuid}}",
+  "slug": "electronics-{{$random.uuid}}",
+  "description": "Electronic gadgets",
+  "imageUrl": "/uploads/categories/electronics.jpg"
+}
+
+> {%
+    if (response.status === 200 || response.status === 201) {
+        client.global.set("categoryId", response.body.id);
+        client.test("Category has imageUrl", function() {
+            client.assert(response.body.imageUrl === "/uploads/categories/electronics.jpg",
+                "imageUrl should be set");
+        });
+    }
+%}
+
+###
+
+### 11.2 Create Product with imageUrl
+# @name createProductWithImage
+POST {{host}}/api/v1/products
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Wireless Headphones-{{$random.uuid}}",
+  "slug": "headphones-{{$random.uuid}}",
+  "description": "Premium noise-canceling headphones",
+  "imageUrl": "/uploads/products/headphones.jpg",
+  "categoryId": {{categoryId}},
+  "variants": [
+    {
+      "name": "Black",
+      "sku": "WH-BLK-{{$random.uuid}}",
+      "price": 199.99,
+      "stockLevel": 50
+    }
+  ]
+}
+
+> {%
+    if (response.status === 200 || response.status === 201) {
+        client.global.set("productId", response.body.id);
+        client.global.set("productSlug", response.body.slug);
+        client.test("Product has imageUrl", function() {
+            client.assert(response.body.imageUrl === "/uploads/products/headphones.jpg",
+                "imageUrl should be set");
+        });
+    }
+%}
+
+###
+
+### 11.3 Verify imageUrl in public storefront API
+GET {{host}}/api/v1/storefront/{{storeSlug}}/products/{{productSlug}}
+
+> {%
+    client.test("Public product has imageUrl", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.imageUrl !== undefined, "imageUrl should exist");
+    });
+%}
+
+###
+
+### 11.4 Verify imageUrl in collections API
+GET {{host}}/api/v1/storefront/{{storeSlug}}/collections
+
+> {%
+    client.test("Collections have imageUrl field", function() {
+        client.assert(response.status === 200, "Expected 200");
+        if (response.body.length > 0) {
+            client.assert(response.body[0].imageUrl !== undefined, "imageUrl should exist");
+        }
+    });
+%}
