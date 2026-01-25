@@ -51,3 +51,7 @@ PROJECT_HANDOFF.md
 *.html
 *.xml
 
+# AI and IDE specific
+.agent/
+.claude/
+.github/

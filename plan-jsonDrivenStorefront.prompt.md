@@ -284,12 +284,16 @@ shopify_alternative/
 - [x] Update SecurityConfig for public access
 - [x] Create Component Schema registry (10 core sections)
 
-### Phase 2: Next.js Storefront
-- [ ] Initialize Next.js project with App Router
-- [ ] Build Layout Renderer (JSON → Components)
-- [ ] Implement 10 core Section components
-- [ ] Build Cart & Checkout with checkoutMode support
-- [ ] Implement AppBlockLoader for Web Components
+### Phase 2: Next.js Storefront ✅ COMPLETED (January 22, 2026)
+- [x] Initialize Next.js project with App Router
+- [x] Build Layout Renderer (JSON → Components)
+- [x] Implement 10 core Section components
+- [x] Build Cart & Checkout with checkoutMode support
+- [x] Implement AppBlockLoader for Web Components
+- [x] Create Store Header with navigation
+- [x] Add products listing with pagination & filtering
+- [x] Add collections listing page
+- [x] Implement editor bridge for postMessage communication
 
 ### Phase 3: Visual Editor
 - [ ] Create Editor page with iframe preview

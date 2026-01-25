@@ -116,8 +116,14 @@ erDiagram
 ## 📚 How to Navigate
 Click on the **Documentation Link** for each module above to view detailed schemas, internal flows, and API descriptions.
 
+## 🛒 Frontend Applications
+
+| Application | Description | Location |
+| :--- | :--- | :--- |
+| **Storefront** | Next.js 14+ e-commerce renderer | [frontend/storefront/](frontend/storefront/README.md) |
+
 ## 📝 Last Updated
 
-- **Date**: January 21, 2026
-- **Changes**: Added Storefront module (JSON-driven website generation)
+- **Date**: January 22, 2026
+- **Changes**: Completed Phase 2 - Next.js Storefront with JSON-driven layouts, 10 section components, cart/checkout, and editor bridge
 
