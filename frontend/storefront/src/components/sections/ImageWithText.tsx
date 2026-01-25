@@ -28,7 +28,7 @@ const VERTICAL_ALIGN_CLASSES = {
   bottom: 'items-end',
 };
 
-export default function ImageWithText({ section }: SectionProps) {
+export default function ImageWithText({ section, storeSlug }: SectionProps) {
   const settings = section.settings as ImageWithTextSettings;
 
   const {
@@ -44,6 +44,13 @@ export default function ImageWithText({ section }: SectionProps) {
     text_color,
     vertical_alignment = 'center',
   } = settings;
+
+  // Helper to prefix links with store path
+  const prefixLink = (link: string) => {
+    if (!link) return link;
+    if (link.startsWith('/store/') || link.startsWith('http')) return link;
+    return `/store/${storeSlug}${link.startsWith('/') ? link : '/' + link}`;
+  };
 
   const style: React.CSSProperties = {};
   if (background_color) style.backgroundColor = background_color;
@@ -90,7 +97,7 @@ export default function ImageWithText({ section }: SectionProps) {
 
       {cta_text && cta_link && (
         <Link
-          href={cta_link}
+          href={prefixLink(cta_link)}
           className="inline-block mt-4 px-6 py-3 bg-gray-900 text-white font-semibold rounded-md hover:bg-gray-800 transition-colors"
         >
           {cta_text}

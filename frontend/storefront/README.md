@@ -71,11 +71,17 @@ src/
 │       │       └── page.tsx     # Collection products
 │       ├── cart/
 │       │   └── page.tsx         # Shopping cart
-│       └── checkout/
-│           └── page.tsx         # Checkout flow
+│       ├── checkout/
+│       │   └── page.tsx         # Checkout flow
+│       ├── account/
+│       │   └── page.tsx         # Customer login/register/orders (Phase 2)
+│       └── pages/
+│           └── [handle]/
+│               └── page.tsx     # Custom pages (about-us, etc.) (Phase 2)
 ├── components/
 │   ├── LayoutRenderer.tsx       # JSON → React mapper
 │   ├── StoreHeader.tsx          # Store navigation
+│   ├── SortDropdown.tsx         # Product sorting (client component) (Phase 2)
 │   ├── AppBlockLoader.tsx       # Web Components loader
 │   └── sections/                # Section components
 │       ├── HeroBanner.tsx
@@ -93,10 +99,14 @@ src/
 |----------|-------------|
 | `GET /api/v1/storefront/{slug}/settings` | Store settings & branding |
 | `GET /api/v1/storefront/{slug}/layout?page=` | Page layout JSON |
+| `GET /api/v1/storefront/{slug}/pages/{handle}` | Custom page layout (Phase 2) |
 | `GET /api/v1/storefront/{slug}/products` | Product listings |
 | `GET /api/v1/storefront/{slug}/products/{slug}` | Single product |
 | `GET /api/v1/storefront/{slug}/collections` | All collections |
 | `GET /api/v1/storefront/{slug}/collections/{slug}` | Single collection |
+| `POST /api/v1/auth/customer/{storeSlug}/register` | Customer registration (Phase 2) |
+| `POST /api/v1/auth/login` | Customer/User login |
+| `GET /api/v1/orders/my` | Customer's orders |
 
 ## Build & Deploy
 

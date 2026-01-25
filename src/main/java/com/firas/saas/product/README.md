@@ -17,7 +17,15 @@ classDiagram
         +String name
         +String slug
         +String description
+        +String imageUrl
         +boolean active
+    }
+    
+    class Category {
+        +String name
+        +String slug
+        +String description
+        +String imageUrl
     }
     
     class ProductVariant {
@@ -45,7 +53,17 @@ erDiagram
         String name
         String slug
         String description
+        String imageUrl
         boolean active
+    }
+    
+    CATEGORY {
+        Long id
+        Long tenant_id
+        String name
+        String slug
+        String description
+        String imageUrl
     }
     
     PRODUCT_VARIANT {

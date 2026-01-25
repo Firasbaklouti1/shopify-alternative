@@ -295,6 +295,19 @@ shopify_alternative/
 - [x] Add collections listing page
 - [x] Implement editor bridge for postMessage communication
 
+### Plan: Fix Phase 2 Storefront Bugs
+Address 5 issues from manual testing: React Server Component onChange violation, missing account/custom pages routes, CORS error on checkout, and missing images. All routes under /store/[slug]/* only.
+Steps
+- [ ] Extract sort dropdown to Client Component: Create SortDropdown.tsx in components/ with 'use client', move the <select onChange> (lines 100-114) from products/page.tsx. Import and render in the server component.
+- [ ] Add imageUrl field to Product and Category entities: Add private String imageUrl; column to Product.java and Category.java. Update DTOs: ProductRequest, ProductResponse, CategoryRequest, CategoryResponse. Update service mappers.
+- [ ] Add CORS configuration: Create CorsConfig.java implementing WebMvcConfigurer with addCorsMappings() allowing http://localhost:3000. Update SecurityConfig.java to enable .cors(Customizer.withDefaults()).
+- [ ] Add static image serving: Add addResourceHandlers() in the new CorsConfig.java to serve /uploads/** from file:./uploads/. Create uploads/ directory and add to .gitignore.
+- [ ] Add customer self-registration endpoint: Add POST /api/v1/auth/customer/{storeSlug}/register to AuthController.java. Create CustomerSignupRequest DTO. Creates both a User (with Role.CUSTOMER) and a linked Customer record for the tenant. This bridges the User-Customer gap.
+- [ ] Create /store/[slug]/account route: Add account/page.tsx as a client component with login/register forms. Call existing /api/v1/auth/login and new customer registration endpoint. Show "my orders" after login using /api/v1/orders/my.
+- [ ] Create /store/[slug]/pages/[handle] route: Add pages/[handle]/page.tsx that fetches custom page layout via getCustomPageLayout() and renders using LayoutRenderer.
+- [ ] Add test.http files: Create src/test/java/com/firas/saas/storefront/test.http with scenarios for storefront APIs, CORS preflight, customer auth. Follow project test.http pattern with assertions.
+- [ ] Update documentation: Update Product README, Customer README, Security README, Storefront README, Frontend README, and DOCUMENTATION.md with new fields, endpoints, routes, and date (January 25, 2026).
+
 ### Phase 3: Visual Editor
 - [ ] Create Editor page with iframe preview
 - [ ] Implement postMessage communication protocol

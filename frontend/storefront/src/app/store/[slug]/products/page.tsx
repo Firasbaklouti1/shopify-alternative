@@ -2,6 +2,7 @@ import { getProducts, getCollections } from '@/lib/api';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import SortDropdown from '@/components/SortDropdown';
 
 interface ProductsPageProps {
   params: Promise<{ slug: string }>;
@@ -96,20 +97,7 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
                 <p className="text-sm text-gray-600">
                   Showing page {currentPage + 1} of {totalPages || 1}
                 </p>
-                <select
-                  defaultValue={sort}
-                  onChange={(e) => {
-                    const url = new URL(window.location.href);
-                    url.searchParams.set('sort', e.target.value);
-                    window.location.href = url.toString();
-                  }}
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                >
-                  <option value="name-asc">Name: A-Z</option>
-                  <option value="name-desc">Name: Z-A</option>
-                  <option value="price-asc">Price: Low to High</option>
-                  <option value="price-desc">Price: High to Low</option>
-                </select>
+                <SortDropdown currentSort={sort} basePath={basePath} />
               </div>
 
               {products.length === 0 ? (

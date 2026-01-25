@@ -124,6 +124,6 @@ Click on the **Documentation Link** for each module above to view detailed schem
 
 ## 📝 Last Updated
 
-- **Date**: January 22, 2026
-- **Changes**: Completed Phase 2 - Next.js Storefront with JSON-driven layouts, 10 section components, cart/checkout, and editor bridge
+- **Date**: January 25, 2026
+- **Changes**: Phase 2 Bug Fixes - Added CORS configuration, customer self-registration, imageUrl fields for Product/Category, account page, custom pages route, SortDropdown client component
 

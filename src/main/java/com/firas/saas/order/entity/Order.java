@@ -30,6 +30,15 @@ public class Order extends TenantEntity {
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal totalPrice;
 
+    @Column(length = 500)
+    private String shippingAddress;
+
+    @Column(length = 500)
+    private String billingAddress;
+
+    @Column
+    private String customerPhone;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();

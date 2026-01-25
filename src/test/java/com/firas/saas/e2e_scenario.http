@@ -1,5 +1,5 @@
 ### ==================================================
-### FULL END-TO-END SCENARIO TEST v2.0
+### FULL END-TO-END SCENARIO TEST v2.1
 ### ==================================================
 ### From Platform Admin to Merchant to Customer
 ### Including Billing, Shipping, Discounts, Analytics, and Webhooks
@@ -11,6 +11,11 @@
 ### - Discount exhaustion/reuse tests
 ### - Consistent analytics validation
 ### - Proper error codes (404 not 500 for isolation)
+### - Demo Store Setup with full storefront
+### - Page Layouts & Themes
+### - Public Storefront APIs (no auth)
+### - Customer Registration & Authentication
+### - Guest & Authenticated Checkout flows
 ### ==================================================
 
 @host = http://localhost:8080
@@ -1210,7 +1215,793 @@ Authorization: Bearer {{merchantToken}}
 ### 1️⃣5️⃣ FINAL VALIDATION & SUMMARY
 ### ==================================================
 
-### 15.1 Final Dashboard Check
+### ==================================================
+### 1️⃣6️⃣ DEMO STORE SETUP & STOREFRONT TESTS
+### ==================================================
+### This section creates a demo store with full storefront functionality
+### Including page layouts, public APIs, and customer checkout flows
+
+### 16.1 Register Demo Store Merchant
+# @name registerDemoStore
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "storeName": "Demo Store",
+  "storeSlug": "demo",
+  "email": "demo@example.com",
+  "password": "password123",
+  "fullName": "Demo Merchant"
+}
+
+> {%
+    if (response.body.slug) {
+        client.global.set("demoStoreSlug", response.body.slug);
+        client.log("✓ Demo store registered, slug: " + response.body.slug);
+    } else {
+        client.log("ℹ️ Demo store may already exist. Try login.");
+    }
+%}
+
+###
+
+### 16.2 Login as Demo Store Merchant
+# @name loginDemoMerchant
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "demo@example.com",
+  "password": "password123"
+}
+
+> {%
+    if (response.body.token) {
+        client.global.set("demoMerchantToken", response.body.token);
+        client.global.set("demoTenantId", response.body.tenantId);
+        client.global.set("demoStoreSlug", "demo");
+        client.log("✓ Logged in as demo merchant, tenantId: " + response.body.tenantId);
+    }
+%}
+
+###
+
+### 16.3 Create Electronics Category for Demo Store
+POST {{host}}/api/v1/products/categories
+Authorization: Bearer {{demoMerchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Electronics",
+  "slug": "electronics",
+  "description": "Electronic devices and accessories",
+  "imageUrl": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800"
+}
+
+> {%
+    if (response.body && response.body.id) {
+        client.global.set("demoElectronicsId", response.body.id);
+        client.log("✓ Created Electronics category, ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 16.4 Create Clothing Category for Demo Store
+POST {{host}}/api/v1/products/categories
+Authorization: Bearer {{demoMerchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Clothing",
+  "slug": "clothing",
+  "description": "Fashion and apparel for all occasions",
+  "imageUrl": "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=800"
+}
+
+> {%
+    if (response.body && response.body.id) {
+        client.global.set("demoClothingId", response.body.id);
+        client.log("✓ Created Clothing category, ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 16.5 Verify Demo Store Categories
+GET {{host}}/api/v1/products/categories
+Authorization: Bearer {{demoMerchantToken}}
+
+> {%
+    client.test("Demo store categories created", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.log("✓ Demo store has " + response.body.length + " categories");
+        // Set category IDs from existing categories if not set
+        if (response.body && response.body.length > 0) {
+            response.body.forEach(function(cat) {
+                if (cat.slug === "electronics") {
+                    client.global.set("demoElectronicsId", cat.id);
+                }
+                if (cat.slug === "clothing") {
+                    client.global.set("demoClothingId", cat.id);
+                }
+            });
+        }
+    });
+%}
+
+###
+
+### 16.6 Create Pro Smartphone Product
+POST {{host}}/api/v1/products
+Authorization: Bearer {{demoMerchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Pro Smartphone X1",
+  "slug": "pro-smartphone-x1",
+  "description": "The latest flagship smartphone with cutting-edge technology. Features a stunning AMOLED display, powerful processor, and professional-grade camera system.",
+  "imageUrl": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800",
+  "categoryId": {{demoElectronicsId}},
+  "variants": [
+    {
+      "name": "128GB Midnight Black",
+      "sku": "PHONE-X1-128-BLK",
+      "price": 999.99,
+      "stockLevel": 20
+    },
+    {
+      "name": "256GB Midnight Black",
+      "sku": "PHONE-X1-256-BLK",
+      "price": 1099.99,
+      "stockLevel": 15
+    },
+    {
+      "name": "512GB Silver",
+      "sku": "PHONE-X1-512-SLV",
+      "price": 1299.99,
+      "stockLevel": 10
+    }
+  ]
+}
+
+> {%
+    if (response.body && response.body.id) {
+        client.global.set("demoSmartphoneId", response.body.id);
+        client.global.set("demoSmartphoneSlug", response.body.slug);
+        client.global.set("demoVariantId", response.body.variants[0].id);
+        client.log("✓ Created Smartphone product, ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 16.7 Create Wireless Headphones Product
+POST {{host}}/api/v1/products
+Authorization: Bearer {{demoMerchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Premium Wireless Headphones",
+  "slug": "premium-wireless-headphones",
+  "description": "Experience immersive audio with our premium wireless headphones. Active noise cancellation, 30-hour battery life, and ultra-comfortable design.",
+  "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800",
+  "categoryId": {{demoElectronicsId}},
+  "variants": [
+    {
+      "name": "Matte Black",
+      "sku": "AUDIO-HP-BLK",
+      "price": 299.99,
+      "stockLevel": 40
+    },
+    {
+      "name": "Pearl White",
+      "sku": "AUDIO-HP-WHT",
+      "price": 299.99,
+      "stockLevel": 35
+    }
+  ]
+}
+
+> {%
+    if (response.body && response.body.id) {
+        client.global.set("demoHeadphonesId", response.body.id);
+        client.log("✓ Created Headphones product, ID: " + response.body.id);
+    }
+%}
+
+###
+
+### 16.8 Create Classic T-Shirt Product
+POST {{host}}/api/v1/products
+Authorization: Bearer {{demoMerchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Classic Cotton T-Shirt",
+  "slug": "classic-cotton-tshirt",
+  "description": "Premium 100% organic cotton t-shirt. Soft, breathable, and perfect for everyday wear. Pre-shrunk fabric ensures a lasting fit.",
+  "imageUrl": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800",
+  "categoryId": {{demoClothingId}},
+  "variants": [
+    {
+      "name": "Small White",
+      "sku": "CLOTH-TS-S-WHT",
+      "price": 29.99,
+      "stockLevel": 20
+    },
+    {
+      "name": "Medium White",
+      "sku": "CLOTH-TS-M-WHT",
+      "price": 29.99,
+      "stockLevel": 25
+    },
+    {
+      "name": "Large Black",
+      "sku": "CLOTH-TS-L-BLK",
+      "price": 29.99,
+      "stockLevel": 30
+    }
+  ]
+}
+
+> {%
+    if (response.body && response.body.id) {
+        client.global.set("demoTshirtId", response.body.id);
+        client.log("✓ Created T-Shirt product, ID: " + response.body.id);
+    }
+%}
+
+###
+
+### ==================================================
+### 1️⃣7️⃣ DEMO STORE SETTINGS & PUBLISHING
+### ==================================================
+
+### 17.1 Update Demo Store Settings
+PUT {{host}}/api/v1/stores/settings
+Authorization: Bearer {{demoMerchantToken}}
+Content-Type: application/json
+
+{
+  "checkoutMode": "BOTH",
+  "globalStyles": {
+    "primaryColor": "#2563EB",
+    "secondaryColor": "#1E40AF",
+    "accentColor": "#F59E0B",
+    "backgroundColor": "#FFFFFF",
+    "textColor": "#1F2937",
+    "fontFamily": "Inter, system-ui, sans-serif",
+    "headingFont": "Poppins, sans-serif",
+    "borderRadius": "8px",
+    "logo": "/uploads/demo-logo.png"
+  },
+  "seoDefaults": {
+    "titleTemplate": "{page_title} | Demo Store",
+    "defaultDescription": "Welcome to Demo Store - Your one-stop shop for Electronics and Fashion",
+    "keywords": "electronics, clothing, fashion, smartphone, headphones"
+  },
+  "socialLinks": {
+    "facebook": "https://facebook.com/demostore",
+    "instagram": "https://instagram.com/demostore",
+    "twitter": "https://twitter.com/demostore"
+  },
+  "contactEmail": "support@demostore.com",
+  "contactPhone": "+1 (555) 123-4567",
+  "address": "123 Demo Street, Commerce City, CA 90210",
+  "announcementText": "Grand Opening Sale! Free shipping on orders over $50!",
+  "announcementEnabled": true,
+  "currencyCode": "USD",
+  "currencySymbol": "$"
+}
+
+> {%
+    client.test("Demo store settings updated", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.log("✓ Demo store settings configured");
+    });
+%}
+
+###
+
+### 17.2 Publish Demo Store
+POST {{host}}/api/v1/stores/publish
+Authorization: Bearer {{demoMerchantToken}}
+
+> {%
+    client.test("Demo store published", function() {
+        client.assert(response.status === 200 || response.status === 400,
+            "Expected 200 or 400, got " + response.status);
+        if (response.status === 200) {
+            client.log("✓ Demo store is now PUBLISHED");
+        } else {
+            client.log("ℹ️ Demo store may already be published");
+        }
+    });
+%}
+
+###
+
+### 17.3 Apply Theme to Create Default Layouts
+POST {{host}}/api/v1/stores/themes/1/apply
+Authorization: Bearer {{demoMerchantToken}}
+
+> {%
+    if (response.status === 200) {
+        client.log("✓ Theme applied, default layouts created");
+    } else {
+        client.log("ℹ️ Theme not found, layouts may have been initialized");
+    }
+%}
+
+###
+
+### 17.4 Update HOME Page Layout
+PUT {{host}}/api/v1/stores/layouts/HOME
+Authorization: Bearer {{demoMerchantToken}}
+Content-Type: application/json
+
+{
+  "layoutJson": {
+    "sections": {
+      "announcement": {
+        "type": "announcement-bar",
+        "settings": {
+          "text": "Grand Opening Sale! Free shipping on orders over $50!",
+          "bg_color": "#2563EB",
+          "text_color": "#FFFFFF"
+        }
+      },
+      "hero-main": {
+        "type": "hero-banner",
+        "settings": {
+          "title": "Welcome to Demo Store",
+          "subtitle": "Discover amazing products at unbeatable prices",
+          "bg_image": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600",
+          "cta_text": "Shop Now",
+          "cta_link": "/collections/all",
+          "overlay_opacity": 0.5,
+          "height": "large"
+        }
+      },
+      "featured-categories": {
+        "type": "collection-list",
+        "settings": {
+          "title": "Shop by Category",
+          "collections": ["electronics", "clothing"],
+          "columns": 2
+        }
+      },
+      "featured-products": {
+        "type": "product-grid",
+        "settings": {
+          "title": "Featured Products",
+          "collection_handle": "all",
+          "limit": 6,
+          "columns": 3,
+          "show_price": true
+        }
+      },
+      "newsletter": {
+        "type": "newsletter",
+        "settings": {
+          "title": "Join Our Newsletter",
+          "subtitle": "Subscribe to get special offers and exclusive deals!",
+          "button_text": "Subscribe",
+          "background_color": "#1F2937"
+        }
+      }
+    },
+    "order": [
+      "announcement",
+      "hero-main",
+      "featured-categories",
+      "featured-products",
+      "newsletter"
+    ]
+  },
+  "seoTitle": "Demo Store | Electronics & Fashion",
+  "seoDescription": "Welcome to Demo Store - Your one-stop shop for premium electronics and trendy fashion."
+}
+
+> {%
+    if (response.status === 200 || response.status === 201) {
+        client.log("✓ Home page layout updated");
+    } else if (response.status === 404) {
+        client.log("⚠ Home layout not found - layouts may need to be initialized first");
+    }
+%}
+
+###
+
+### 17.5 Publish HOME Page Layout
+POST {{host}}/api/v1/stores/layouts/HOME/publish
+Authorization: Bearer {{demoMerchantToken}}
+
+> {%
+    if (response.status === 200) {
+        client.log("✓ Home page layout PUBLISHED");
+    }
+%}
+
+###
+
+### 17.6 Create About Us Page
+POST {{host}}/api/v1/stores/pages
+Authorization: Bearer {{demoMerchantToken}}
+Content-Type: application/json
+
+{
+  "pageType": "CUSTOM",
+  "handle": "about-us",
+  "name": "About Us",
+  "layoutJson": {
+    "sections": {
+      "hero": {
+        "type": "hero-banner",
+        "settings": {
+          "title": "About Demo Store",
+          "subtitle": "Our story, mission, and values",
+          "height": "medium",
+          "bg_image": "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1600",
+          "overlay_opacity": 0.6
+        }
+      },
+      "story": {
+        "type": "image-with-text",
+        "settings": {
+          "image": "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=800",
+          "title": "Our Story",
+          "content": "Founded in 2020, Demo Store started with a simple mission: to provide high-quality products at fair prices with exceptional customer service.",
+          "image_position": "left"
+        }
+      }
+    },
+    "order": ["hero", "story"]
+  },
+  "seoTitle": "About Us | Demo Store",
+  "seoDescription": "Learn about Demo Store's story and commitment to quality."
+}
+
+> {%
+    if (response.status === 200 || response.status === 201) {
+        client.log("✓ About Us page created");
+    } else if (response.status === 400) {
+        client.log("ℹ️ About page may already exist");
+    }
+%}
+
+###
+
+### 17.7 Publish About Us Page
+POST {{host}}/api/v1/stores/pages/about-us/publish
+Authorization: Bearer {{demoMerchantToken}}
+
+> {%
+    if (response.status === 200) {
+        client.log("✓ About Us page PUBLISHED");
+    }
+%}
+
+###
+
+### ==================================================
+### 1️⃣8️⃣ PUBLIC STOREFRONT API TESTS (NO AUTH)
+### ==================================================
+
+### 18.1 Get Public Store Settings
+GET {{host}}/api/v1/storefront/demo/settings
+
+> {%
+    client.test("Public settings accessible", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.log("✓ Demo store is publicly accessible");
+    });
+%}
+
+###
+
+### 18.2 Get Public Home Layout
+GET {{host}}/api/v1/storefront/demo/layout?page=HOME
+
+> {%
+    client.test("Public home layout accessible", function() {
+        client.assert(response.status === 200 || response.status === 404,
+            "Expected 200/404, got " + response.status);
+        if (response.status === 200) {
+            client.log("✓ Home layout retrieved");
+        }
+    });
+%}
+
+###
+
+### 18.3 Get Public Products
+GET {{host}}/api/v1/storefront/demo/products?page=0&size=10
+
+> {%
+    client.test("Public products accessible", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        if (response.body.products) {
+            client.log("✓ Products available: " + response.body.products.length);
+            // Save variant for checkout test
+            if (response.body.products.length > 0 && response.body.products[0].variants) {
+                client.global.set("demoTestVariantId", response.body.products[0].variants[0].id);
+                client.global.set("demoTestProductId", response.body.products[0].id);
+            }
+        } else if (response.body.content) {
+            client.log("✓ Products available: " + response.body.content.length);
+        }
+    });
+%}
+
+###
+
+### 18.4 Get Public Collections
+GET {{host}}/api/v1/storefront/demo/collections
+
+> {%
+    client.test("Public collections accessible", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.log("✓ Collections retrieved");
+    });
+%}
+
+###
+
+### 18.5 Get Product by Slug
+GET {{host}}/api/v1/storefront/demo/products/pro-smartphone-x1
+
+> {%
+    client.test("Product detail accessible", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        if (response.body.name) {
+            client.log("✓ Product: " + response.body.name);
+        }
+    });
+%}
+
+###
+
+### 18.6 Get Collection by Slug
+GET {{host}}/api/v1/storefront/demo/collections/electronics
+
+> {%
+    client.test("Collection detail accessible", function() {
+        client.assert(response.status === 200 || response.status === 404,
+            "Expected 200 or 404, got " + response.status);
+    });
+%}
+
+###
+
+### 18.7 Get About Us Page (public)
+GET {{host}}/api/v1/storefront/demo/pages/about-us
+
+> {%
+    client.test("Custom page accessible", function() {
+        client.assert(response.status === 200 || response.status === 404,
+            "Expected 200 or 404, got " + response.status);
+    });
+%}
+
+###
+
+### 18.8 Verify Products Have Images
+GET {{host}}/api/v1/storefront/demo/products
+
+> {%
+    client.test("Products have imageUrl", function() {
+        client.assert(response.status === 200);
+        if (response.body.products && response.body.products.length > 0) {
+            var hasImages = response.body.products.some(function(p) { return p.imageUrl; });
+            client.assert(hasImages, "At least one product should have imageUrl");
+            client.log("✓ Products with images found");
+        }
+    });
+%}
+
+###
+
+### 18.9 Verify Collections Have Images
+GET {{host}}/api/v1/storefront/demo/collections
+
+> {%
+    client.test("Collections have imageUrl", function() {
+        client.assert(response.status === 200);
+        if (response.body && response.body.length > 0) {
+            var hasImages = response.body.some(function(c) { return c.imageUrl; });
+            client.assert(hasImages, "At least one collection should have imageUrl");
+            client.log("✓ Collections with images found");
+        }
+    });
+%}
+
+###
+
+### ==================================================
+### 1️⃣9️⃣ CUSTOMER REGISTRATION & CHECKOUT (Demo Store)
+### ==================================================
+
+### 19.1 Register Customer on Demo Store
+POST {{host}}/api/v1/auth/customer/demo/register
+Content-Type: application/json
+
+{
+  "email": "democustomer@example.com",
+  "password": "customer123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "phone": "555-1234"
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("demoCustomerEmail", "democustomer@example.com");
+        client.global.set("demoCustomerToken", response.body.token);
+        client.log("✓ Demo customer registered successfully");
+    } else if (response.status === 500 || response.status === 400) {
+        client.log("ℹ️ Customer may already exist, try logging in");
+    }
+%}
+
+###
+
+### 19.2 Login as Demo Customer
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "democustomer@example.com",
+  "password": "customer123"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("demoCustomerToken", response.body.token);
+        client.log("✓ Demo customer logged in successfully");
+        client.test("Role is CUSTOMER", function() {
+            client.assert(response.body.role === "ROLE_CUSTOMER",
+                "Expected ROLE_CUSTOMER, got " + response.body.role);
+        });
+    }
+%}
+
+###
+
+### 19.3 Add to Cart (Demo Customer)
+POST {{host}}/api/v1/orders/cart/add
+Authorization: Bearer {{demoCustomerToken}}
+Content-Type: application/json
+
+{
+  "variantId": {{demoVariantId}},
+  "quantity": 2
+}
+
+> {%
+    client.test("Add to cart successful", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.log("✓ Added item to cart");
+    });
+%}
+
+###
+
+### 19.4 Get Cart (Demo Customer)
+GET {{host}}/api/v1/orders/cart
+Authorization: Bearer {{demoCustomerToken}}
+
+> {%
+    client.test("Cart retrieved", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        if (response.body.items) {
+            client.log("✓ Cart has " + response.body.items.length + " items");
+        }
+    });
+%}
+
+###
+
+### 19.5 Customer Checkout
+POST {{host}}/api/v1/orders/checkout
+Authorization: Bearer {{demoCustomerToken}}
+
+> {%
+    client.test("Customer checkout creates order", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        if (response.body.orderNumber) {
+            client.global.set("demoCustomerOrderNumber", response.body.orderNumber);
+            client.log("✓ Demo customer order created: " + response.body.orderNumber);
+            client.log("  - Total: $" + response.body.totalPrice);
+        }
+    });
+%}
+
+###
+
+### 19.6 Get Customer Orders
+GET {{host}}/api/v1/orders/my
+Authorization: Bearer {{demoCustomerToken}}
+
+> {%
+    client.test("Customer orders retrieved", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.log("✓ Customer has " + response.body.length + " orders");
+    });
+%}
+
+###
+
+### ==================================================
+### 2️⃣0️⃣ GUEST CHECKOUT (Demo Store - No Auth)
+### ==================================================
+
+### 20.1 Guest Checkout - Create Order
+POST {{host}}/api/v1/storefront/demo/checkout
+Content-Type: application/json
+
+{
+  "email": "guest@example.com",
+  "firstName": "Guest",
+  "lastName": "Customer",
+  "phone": "555-0000",
+  "address": "123 Guest Street",
+  "city": "Test City",
+  "state": "CA",
+  "zipCode": "90210",
+  "country": "US",
+  "items": [
+    {
+      "productId": {{demoTestProductId}},
+      "variantId": {{demoTestVariantId}},
+      "quantity": 1
+    }
+  ]
+}
+
+> {%
+    client.test("Guest checkout creates order", function() {
+        client.assert(response.status === 201 || response.status === 200,
+            "Expected 201/200, got " + response.status);
+        if (response.body.orderNumber) {
+            client.global.set("demoGuestOrderNumber", response.body.orderNumber);
+            client.log("✓ Guest order created: " + response.body.orderNumber);
+            client.log("  - Total: $" + response.body.totalPrice);
+            client.log("  - Customer: " + response.body.customerEmail);
+        }
+    });
+%}
+
+###
+
+### ==================================================
+### 2️⃣1️⃣ MERCHANT VIEW ALL DEMO STORE ORDERS
+### ==================================================
+
+### 21.1 Get All Demo Store Orders (Merchant)
+GET {{host}}/api/v1/orders
+Authorization: Bearer {{demoMerchantToken}}
+
+> {%
+    client.test("All demo store orders retrieved", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.log("✓ Total orders in demo store: " + response.body.length);
+        if (response.body.length > 0) {
+            response.body.forEach(function(order) {
+                client.log("  - " + order.orderNumber + ": " + order.status + " ($" + order.totalPrice + ")");
+            });
+        }
+    });
+%}
+
+###
+
+### ==================================================
+### 2️⃣2️⃣ FINAL VALIDATION & SUMMARY
+### ==================================================
+
+### 22.1 Final Dashboard Check (Original Merchant)
 GET {{host}}/api/v1/analytics/dashboard
 Authorization: Bearer {{merchantToken}}
 
@@ -1224,7 +2015,26 @@ Authorization: Bearer {{merchantToken}}
     client.log("🎉 E2E SCENARIO COMPLETED!");
     client.log("══════════════════════════════════════════════════");
     client.log("");
-    client.log("📊 FINAL STATE:");
+    client.log("📊 MAIN STORE FINAL STATE:");
+    client.log("   Products Created: " + response.body.totalProducts);
+    client.log("   Orders Placed: " + response.body.totalOrders);
+    client.log("   Customers: " + response.body.totalCustomers);
+    client.log("   Revenue: $" + response.body.totalRevenue);
+    client.log("");
+%}
+
+###
+
+### 22.2 Final Dashboard Check (Demo Store)
+GET {{host}}/api/v1/analytics/dashboard
+Authorization: Bearer {{demoMerchantToken}}
+
+> {%
+    client.test("Demo store final state validation", function() {
+        client.assert(response.status === 200, "Expected 200");
+    });
+
+    client.log("📊 DEMO STORE FINAL STATE:");
     client.log("   Products Created: " + response.body.totalProducts);
     client.log("   Orders Placed: " + response.body.totalOrders);
     client.log("   Customers: " + response.body.totalCustomers);
@@ -1240,6 +2050,12 @@ Authorization: Bearer {{merchantToken}}
     client.log("   • Analytics consistency");
     client.log("   • Invalid state transitions");
     client.log("   • Role-based access control");
+    client.log("   • Demo Store Setup");
+    client.log("   • Page Layouts & Themes");
+    client.log("   • Public Storefront APIs");
+    client.log("   • Customer Registration");
+    client.log("   • Guest Checkout");
+    client.log("   • Authenticated Checkout");
     client.log("");
     client.log("══════════════════════════════════════════════════");
 %}

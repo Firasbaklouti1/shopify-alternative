@@ -2,6 +2,7 @@ export { default as HeroBanner } from './HeroBanner';
 export { default as ProductGrid } from './ProductGrid';
 export { default as ProductMain } from './ProductMain';
 export { default as CollectionList } from './CollectionList';
+export { default as CollectionFilters } from './CollectionFilters';
 export { default as RichText } from './RichText';
 export { default as ImageWithText } from './ImageWithText';
 export { default as Newsletter } from './Newsletter';

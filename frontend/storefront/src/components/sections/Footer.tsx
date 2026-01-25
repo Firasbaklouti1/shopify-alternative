@@ -63,8 +63,15 @@ function SocialIcon({ platform, url }: { platform: string; url: string }) {
   );
 }
 
-export default function Footer({ section }: SectionProps) {
+export default function Footer({ section, storeSlug }: SectionProps) {
   const settings = section.settings as FooterSettings;
+
+  // Helper to prefix links with store path
+  const prefixLink = (link: string) => {
+    if (!link) return link;
+    if (link.startsWith('/store/') || link.startsWith('http')) return link;
+    return `/store/${storeSlug}${link.startsWith('/') ? link : '/' + link}`;
+  };
 
   const {
     logo_url,
@@ -145,7 +152,7 @@ export default function Footer({ section }: SectionProps) {
                 {column.links.map((link, linkIndex) => (
                   <li key={linkIndex}>
                     <Link
-                      href={link.url}
+                      href={prefixLink(link.url)}
                       className="text-sm opacity-80 hover:opacity-100 transition-opacity"
                     >
                       {link.label}

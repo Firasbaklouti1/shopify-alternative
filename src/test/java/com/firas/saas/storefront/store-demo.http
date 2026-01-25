@@ -87,7 +87,8 @@ Content-Type: application/json
 {
   "name": "Electronics",
   "slug": "electronics",
-  "description": "Electronic devices and accessories"
+  "description": "Electronic devices and accessories",
+  "imageUrl": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800"
 }
 
 > {%
@@ -108,7 +109,8 @@ Content-Type: application/json
 {
   "name": "Clothing",
   "slug": "clothing",
-  "description": "Fashion and apparel for all occasions"
+  "description": "Fashion and apparel for all occasions",
+  "imageUrl": "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=800"
 }
 
 > {%
@@ -159,6 +161,7 @@ Content-Type: application/json
   "name": "Pro Smartphone X1",
   "slug": "pro-smartphone-x1",
   "description": "The latest flagship smartphone with cutting-edge technology. Features a stunning AMOLED display, powerful processor, and professional-grade camera system.",
+  "imageUrl": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800",
   "categoryId": {{electronicsId}},
   "variants": [
     {
@@ -205,6 +208,7 @@ Content-Type: application/json
   "name": "Premium Wireless Headphones",
   "slug": "premium-wireless-headphones",
   "description": "Experience immersive audio with our premium wireless headphones. Active noise cancellation, 30-hour battery life, and ultra-comfortable design.",
+  "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800",
   "categoryId": {{electronicsId}},
   "variants": [
     {
@@ -245,6 +249,7 @@ Content-Type: application/json
   "name": "Classic Cotton T-Shirt",
   "slug": "classic-cotton-tshirt",
   "description": "Premium 100% organic cotton t-shirt. Soft, breathable, and perfect for everyday wear. Pre-shrunk fabric ensures a lasting fit.",
+  "imageUrl": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800",
   "categoryId": {{clothingId}},
   "variants": [
     {
@@ -1136,8 +1141,8 @@ Authorization: Bearer {{merchantToken}}
 ###
 ### Created:
 ### ✅ 1 Merchant Account (demo@example.com / password123)
-### ✅ 2 Categories (Electronics, Clothing)
-### ✅ 3 Products with Variants
+### ✅ 2 Categories (Electronics, Clothing) with images
+### ✅ 3 Products with Variants and images
 ### ✅ Store Settings with Branding
 ### ✅ HOME Page Layout (9 sections)
 ### ✅ PRODUCT Page Layout
@@ -1147,3 +1152,237 @@ Authorization: Bearer {{merchantToken}}
 ### ✅ Store Published
 ###
 ### ==================================================
+
+### ==================================================
+### 10. CUSTOMER REGISTRATION TESTS (Phase 2 Addition)
+### ==================================================
+
+### 10.1 Register Customer on Demo Store
+# @name registerCustomer
+POST {{host}}/api/v1/auth/customer/demo/register
+Content-Type: application/json
+
+{
+  "email": "customer@example.com",
+  "password": "customer123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "phone": "555-1234"
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("customerEmail", "customer@example.com");
+        client.global.set("customerToken", response.body.token);
+        client.log("✓ Customer registered successfully");
+        client.log("  Email: customer@example.com");
+        client.log("  Token: " + response.body.token.substring(0, 20) + "...");
+    } else if (response.status === 500 || response.status === 400) {
+        client.log("⚠ Customer may already exist, try logging in");
+    } else {
+        client.log("✗ Customer registration failed: " + response.status);
+    }
+%}
+
+### 10.2 Login as Customer
+# @name loginCustomer
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "customer@example.com",
+  "password": "customer123"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("customerToken", response.body.token);
+        client.log("✓ Customer logged in successfully");
+        client.test("Role is CUSTOMER", function() {
+            client.assert(response.body.role === "ROLE_CUSTOMER",
+                "Expected ROLE_CUSTOMER, got " + response.body.role);
+        });
+    }
+%}
+
+### 10.3 Get Customer's Orders
+# @name getCustomerOrders
+GET {{host}}/api/v1/orders/my
+Authorization: Bearer {{customerToken}}
+
+> {%
+    client.test("Can fetch customer orders", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.log("✓ Customer orders: " + (response.body.length || 0));
+    });
+%}
+
+### ==================================================
+### 11. VERIFY IMAGES IN PUBLIC API
+### ==================================================
+
+### 11.1 Check Products Have imageUrl
+# @name checkProductImages
+GET {{host}}/api/v1/storefront/demo/products
+
+> {%
+    client.test("Products have imageUrl", function() {
+        client.assert(response.status === 200);
+        if (response.body.products && response.body.products.length > 0) {
+            var hasImages = response.body.products.some(function(p) { return p.imageUrl; });
+            client.assert(hasImages, "At least one product should have imageUrl");
+            client.log("✓ Products with images found");
+            // Save a variant ID for checkout test
+            if (response.body.products[0].variants && response.body.products[0].variants.length > 0) {
+                client.global.set("testVariantId", response.body.products[0].variants[0].id);
+                client.global.set("testProductId", response.body.products[0].id);
+                client.log("  - Saved test variant ID: " + response.body.products[0].variants[0].id);
+            }
+        }
+    });
+%}
+
+### 11.2 Check Collections Have imageUrl
+# @name checkCollectionImages
+GET {{host}}/api/v1/storefront/demo/collections
+
+> {%
+    client.test("Collections have imageUrl", function() {
+        client.assert(response.status === 200);
+        if (response.body && response.body.length > 0) {
+            var hasImages = response.body.some(function(c) { return c.imageUrl; });
+            client.assert(hasImages, "At least one collection should have imageUrl");
+            client.log("✓ Collections with images found");
+        }
+    });
+%}
+
+### ==================================================
+### 12. GUEST CHECKOUT (Public API - No Auth)
+### ==================================================
+
+### 12.1 Guest Checkout - Create Order
+# @name guestCheckout
+POST {{host}}/api/v1/storefront/demo/checkout
+Content-Type: application/json
+
+{
+  "email": "guest@example.com",
+  "firstName": "Guest",
+  "lastName": "Customer",
+  "phone": "555-0000",
+  "address": "123 Guest Street",
+  "city": "Test City",
+  "state": "CA",
+  "zipCode": "90210",
+  "country": "US",
+  "items": [
+    {
+      "productId": {{testProductId}},
+      "variantId": {{testVariantId}},
+      "quantity": 1
+    }
+  ]
+}
+
+> {%
+    client.test("Guest checkout creates order", function() {
+        client.assert(response.status === 201, "Expected 201, got " + response.status);
+        if (response.body.orderNumber) {
+            client.global.set("guestOrderNumber", response.body.orderNumber);
+            client.log("✓ Guest order created: " + response.body.orderNumber);
+            client.log("  - Total: $" + response.body.totalPrice);
+            client.log("  - Customer: " + response.body.customerEmail);
+        }
+    });
+%}
+
+### ==================================================
+### 13. AUTHENTICATED CHECKOUT (Customer)
+### ==================================================
+
+### 13.1 Add to Cart (Customer)
+# @name addToCart
+POST {{host}}/api/v1/orders/cart/add
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "variantId": {{testVariantId}},
+  "quantity": 2
+}
+
+> {%
+    client.test("Add to cart successful", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.log("✓ Added item to cart");
+    });
+%}
+
+### 13.2 Get Cart (Customer)
+# @name getCart
+GET {{host}}/api/v1/orders/cart
+Authorization: Bearer {{customerToken}}
+
+> {%
+    client.test("Cart retrieved", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        if (response.body.items) {
+            client.log("✓ Cart has " + response.body.items.length + " items");
+        }
+    });
+%}
+
+### 13.3 Checkout (Customer)
+# @name customerCheckout
+POST {{host}}/api/v1/orders/checkout
+Authorization: Bearer {{customerToken}}
+
+> {%
+    client.test("Customer checkout creates order", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        if (response.body.orderNumber) {
+            client.global.set("customerOrderNumber", response.body.orderNumber);
+            client.log("✓ Customer order created: " + response.body.orderNumber);
+            client.log("  - Total: $" + response.body.totalPrice);
+        }
+    });
+%}
+
+### 13.4 Get My Orders (Customer)
+# @name getMyOrders
+GET {{host}}/api/v1/orders/my
+Authorization: Bearer {{customerToken}}
+
+> {%
+    client.test("Customer orders retrieved", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.log("✓ Customer has " + response.body.length + " orders");
+    });
+%}
+
+### ==================================================
+### 14. MERCHANT VIEW ORDERS
+### ==================================================
+
+### 14.1 Get All Orders (Merchant)
+# @name getAllOrders
+GET {{host}}/api/v1/orders
+Authorization: Bearer {{merchantToken}}
+
+> {%
+    client.test("All orders retrieved", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+        client.log("✓ Total orders in store: " + response.body.length);
+        if (response.body.length > 0) {
+            response.body.forEach(function(order) {
+                client.log("  - " + order.orderNumber + ": " + order.status + " ($" + order.totalPrice + ")");
+            });
+        }
+    });
+%}
+
+### ==================================================
+### ✅ ALL PHASE 2 TESTS COMPLETE
+### ==================================================
+

@@ -36,6 +36,7 @@ public class ProductServiceImpl implements ProductService {
                 .name(request.getName())
                 .slug(request.getSlug())
                 .description(request.getDescription())
+                .imageUrl(request.getImageUrl())
                 .build();
         category.setTenantId(tenantId);
 
@@ -71,6 +72,7 @@ public class ProductServiceImpl implements ProductService {
                 .name(request.getName())
                 .slug(request.getSlug())
                 .description(request.getDescription())
+                .imageUrl(request.getImageUrl())
                 .category(category)
                 .active(true)
                 .build();
@@ -123,7 +125,8 @@ public class ProductServiceImpl implements ProductService {
         product.setName(request.getName());
         product.setSlug(request.getSlug());
         product.setDescription(request.getDescription());
-        
+        product.setImageUrl(request.getImageUrl());
+
         // Simulating simple attribute update for brevity
         // In a real scenario, you'd handle variants and category changes more carefully
         
@@ -225,6 +228,7 @@ public class ProductServiceImpl implements ProductService {
                 .name(category.getName())
                 .slug(category.getSlug())
                 .description(category.getDescription())
+                .imageUrl(category.getImageUrl())
                 .build();
     }
 
@@ -234,6 +238,7 @@ public class ProductServiceImpl implements ProductService {
                 .name(product.getName())
                 .slug(product.getSlug())
                 .description(product.getDescription())
+                .imageUrl(product.getImageUrl())
                 .active(product.isActive())
                 .category(product.getCategory() != null ? mapToCategoryResponse(product.getCategory()) : null)
                 .variants(product.getVariants().stream()

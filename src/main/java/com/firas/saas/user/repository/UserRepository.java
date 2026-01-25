@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface UserRepository extends BaseRepository<User> {
     Optional<User> findByEmail(String email);
     boolean existsByEmail(String email);
+    boolean existsByEmailAndTenant_Id(String email, Long tenantId);
 }

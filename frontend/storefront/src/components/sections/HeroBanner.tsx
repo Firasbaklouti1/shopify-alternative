@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import type { SectionProps } from '../LayoutRenderer';
+import { replaceTemplateVariables } from '../LayoutRenderer';
 
 interface HeroBannerSettings {
   title?: string;
@@ -30,8 +31,17 @@ const ALIGNMENT_CLASSES = {
   right: 'items-end text-right',
 };
 
-export default function HeroBanner({ section }: SectionProps) {
+export default function HeroBanner({ section, storeSlug, product, collection }: SectionProps) {
   const settings = section.settings as HeroBannerSettings;
+
+  // Create context for template variable replacement
+  const context = { product, collection };
+
+  // Helper to replace template variables in strings
+  const replaceVars = (value: string | undefined) => {
+    if (!value) return value;
+    return replaceTemplateVariables(value, context) as string;
+  };
 
   const {
     title = 'Welcome to Our Store',
@@ -47,6 +57,19 @@ export default function HeroBanner({ section }: SectionProps) {
     text_alignment = 'center',
     height = 'large',
   } = settings;
+
+  // Apply template variable replacement
+  const resolvedTitle = replaceVars(title) || 'Welcome to Our Store';
+  const resolvedSubtitle = replaceVars(subtitle);
+
+  // Helper to prefix links with store path
+  const prefixLink = (link: string) => {
+    if (!link) return link;
+    // If link already has /store/ or is external, don't prefix
+    if (link.startsWith('/store/') || link.startsWith('http')) return link;
+    // Add store prefix
+    return `/store/${storeSlug}${link.startsWith('/') ? link : '/' + link}`;
+  };
 
   const textColorClasses = text_color === 'light'
     ? 'text-white'
@@ -85,19 +108,19 @@ export default function HeroBanner({ section }: SectionProps) {
       {/* Content */}
       <div className={`relative z-10 max-w-4xl ${text_alignment === 'center' ? 'mx-auto' : ''}`}>
         <h1 className={`text-4xl md:text-5xl lg:text-6xl font-bold mb-4 ${textColorClasses}`}>
-          {title}
+          {resolvedTitle}
         </h1>
 
-        {subtitle && (
+        {resolvedSubtitle && (
           <p className={`text-lg md:text-xl lg:text-2xl mb-8 opacity-90 ${textColorClasses}`}>
-            {subtitle}
+            {resolvedSubtitle}
           </p>
         )}
 
         <div className={`flex gap-4 ${text_alignment === 'center' ? 'justify-center' : ''} flex-wrap`}>
           {cta_text && (
             <Link
-              href={cta_link}
+              href={prefixLink(cta_link)}
               className="inline-block px-8 py-3 bg-white text-gray-900 font-semibold rounded-md hover:bg-gray-100 transition-colors"
             >
               {cta_text}
@@ -106,7 +129,7 @@ export default function HeroBanner({ section }: SectionProps) {
 
           {secondary_cta_text && secondary_cta_link && (
             <Link
-              href={secondary_cta_link}
+              href={prefixLink(secondary_cta_link)}
               className={`inline-block px-8 py-3 border-2 border-white font-semibold rounded-md hover:bg-white hover:text-gray-900 transition-colors ${textColorClasses}`}
             >
               {secondary_cta_text}

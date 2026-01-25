@@ -15,11 +15,16 @@ import com.firas.saas.product.repository.CategoryRepository;
 import com.firas.saas.product.entity.Product;
 import com.firas.saas.product.entity.Category;
 import com.firas.saas.product.entity.ProductVariant;
+import com.firas.saas.order.dto.GuestCheckoutRequest;
+import com.firas.saas.order.dto.OrderResponse;
+import com.firas.saas.order.service.OrderService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -48,6 +53,7 @@ public class StorefrontController {
     private final TenantRepository tenantRepository;
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final OrderService orderService;
 
     /**
      * Get store settings (branding, checkout mode, theme)
@@ -253,6 +259,33 @@ public class StorefrontController {
         return ResponseEntity.ok(componentRegistry.getAllSections());
     }
 
+    /**
+     * Guest checkout - creates an order without authentication.
+     * Accepts cart items and customer information directly.
+     */
+    @PostMapping("/checkout")
+    public ResponseEntity<OrderResponse> guestCheckout(
+            @PathVariable String slug,
+            @Valid @RequestBody GuestCheckoutRequest request) {
+
+        Tenant tenant = tenantRepository.findBySlug(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Store", slug));
+
+        if (!storeSettingsService.isStorePublished(tenant.getId())) {
+            throw new ResourceNotFoundException("Store", slug);
+        }
+
+        // Check checkout mode
+        com.firas.saas.storefront.entity.CheckoutMode checkoutMode =
+                storeSettingsService.getStoreSettingsBySlug(slug).getCheckoutMode();
+        if (com.firas.saas.storefront.entity.CheckoutMode.ACCOUNT_ONLY.equals(checkoutMode)) {
+            throw new RuntimeException("This store requires an account to checkout");
+        }
+
+        OrderResponse order = orderService.placeGuestOrder(request, tenant.getId());
+        return new ResponseEntity<>(order, HttpStatus.CREATED);
+    }
+
     // =============== Mapping Methods ===============
 
     private PublicProductResponse mapToPublicProduct(Product product) {
@@ -287,6 +320,7 @@ public class StorefrontController {
                 .name(product.getName())
                 .slug(product.getSlug())
                 .description(product.getDescription())
+                .imageUrl(product.getImageUrl())
                 .price(productPrice)
                 .categoryName(categoryName)
                 .categorySlug(categorySlug)
@@ -301,6 +335,7 @@ public class StorefrontController {
                 .name(category.getName())
                 .slug(category.getSlug())
                 .description(category.getDescription())
+                .imageUrl(category.getImageUrl())
                 .productCount(productCount)
                 .build();
     }

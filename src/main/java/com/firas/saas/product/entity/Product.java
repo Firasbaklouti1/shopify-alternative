@@ -25,6 +25,8 @@ public class Product extends TenantEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    private String imageUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private Category category;

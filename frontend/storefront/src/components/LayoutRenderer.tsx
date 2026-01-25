@@ -8,6 +8,7 @@ import HeroBanner from './sections/HeroBanner';
 import ProductGrid from './sections/ProductGrid';
 import ProductMain from './sections/ProductMain';
 import CollectionList from './sections/CollectionList';
+import CollectionFilters from './sections/CollectionFilters';
 import RichText from './sections/RichText';
 import ImageWithText from './sections/ImageWithText';
 import Newsletter from './sections/Newsletter';
@@ -22,6 +23,7 @@ const SECTION_COMPONENTS: Record<string, React.ComponentType<SectionProps>> = {
   'product-grid': ProductGrid,
   'product-main': ProductMain,
   'collection-list': CollectionList,
+  'collection-filters': CollectionFilters,
   'rich-text': RichText,
   'image-with-text': ImageWithText,
   'newsletter': Newsletter,
@@ -47,6 +49,7 @@ export interface SectionProps {
 interface LayoutRendererProps {
   layout: PageLayout;
   storeSlug: string;
+  pageType?: string;
   selectedSectionId?: string | null;
   onSectionClick?: (sectionId: string) => void;
   // Context data
@@ -108,6 +111,7 @@ function UnknownSection({ type }: { type: string }) {
 export default function LayoutRenderer({
   layout,
   storeSlug,
+  pageType,
   selectedSectionId,
   onSectionClick,
   product,
@@ -176,6 +180,7 @@ export default function LayoutRenderer({
 }
 
 // Utility to replace template variables in settings
+// Supports both {variable} and {{variable}} formats
 export function replaceTemplateVariables(
   value: unknown,
   context: {
@@ -186,11 +191,26 @@ export function replaceTemplateVariables(
 ): unknown {
   if (typeof value !== 'string') return value;
 
-  return value
+  let result = value;
+
+  // Handle {{dot.notation}} format
+  result = result
     .replace(/\{\{store_name}}/g, context.store_name || '')
     .replace(/\{\{product\.id}}/g, String(context.product?.id || ''))
     .replace(/\{\{product\.name}}/g, context.product?.name || '')
     .replace(/\{\{product\.price}}/g, String(context.product?.price || ''))
     .replace(/\{\{collection\.name}}/g, context.collection?.name || '')
-    .replace(/\{\{collection\.slug}}/g, context.collection?.slug || '');
+    .replace(/\{\{collection\.slug}}/g, context.collection?.slug || '')
+    .replace(/\{\{collection\.description}}/g, context.collection?.description || '');
+
+  // Handle {underscore_notation} format (from layout JSON)
+  result = result
+    .replace(/\{collection_name}/g, context.collection?.name || '')
+    .replace(/\{collection_slug}/g, context.collection?.slug || '')
+    .replace(/\{collection_description}/g, context.collection?.description || '')
+    .replace(/\{product_name}/g, context.product?.name || '')
+    .replace(/\{product_price}/g, String(context.product?.price || ''))
+    .replace(/\{store_name}/g, context.store_name || '');
+
+  return result;
 }

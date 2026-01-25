@@ -11,6 +11,8 @@ import {
   StoreSettings
 } from '@/lib/api';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 function formatPrice(price: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -32,6 +34,14 @@ interface CustomerInfo {
   phone: string;
 }
 
+interface OrderResult {
+  id: number;
+  orderNumber: string;
+  customerEmail: string;
+  status: string;
+  totalPrice: number;
+}
+
 export default function CheckoutPage() {
   const params = useParams();
   const router = useRouter();
@@ -44,6 +54,13 @@ export default function CheckoutPage() {
   const [mounted, setMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
+  const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Check if user is logged in
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [customerToken, setCustomerToken] = useState<string | null>(null);
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
 
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     email: '',
@@ -61,6 +78,17 @@ export default function CheckoutPage() {
     setMounted(true);
     setCart(getCart());
 
+    // Check if user is logged in
+    const token = localStorage.getItem(`${slug}_customer_token`);
+    const email = localStorage.getItem(`${slug}_customer_email`);
+    if (token && email) {
+      setIsLoggedIn(true);
+      setCustomerToken(token);
+      setCustomerEmail(email);
+      setIsGuest(false);
+      setCustomerInfo(prev => ({ ...prev, email }));
+    }
+
     // Fetch store settings for checkout mode
     getStoreSettings(slug).then(setSettings).catch(console.error);
   }, [slug]);
@@ -76,6 +104,88 @@ export default function CheckoutPage() {
     }));
   };
 
+  const processOrder = async () => {
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      if (isLoggedIn && customerToken) {
+        // Authenticated checkout - first add items to server cart, then checkout
+        // For logged-in users, we need to sync cart with server then call checkout
+        for (const item of cart) {
+          await fetch(`${API_BASE_URL}/api/v1/orders/cart/add`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${customerToken}`,
+            },
+            body: JSON.stringify({
+              variantId: item.variantId,
+              quantity: item.quantity,
+            }),
+          });
+        }
+
+        // Now call checkout
+        const res = await fetch(`${API_BASE_URL}/api/v1/orders/checkout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${customerToken}`,
+          },
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.message || 'Checkout failed');
+        }
+
+        const order = await res.json();
+        setOrderResult(order);
+      } else {
+        // Guest checkout - call public storefront API
+        const res = await fetch(`${API_BASE_URL}/api/v1/storefront/${slug}/checkout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: customerInfo.email,
+            firstName: customerInfo.firstName,
+            lastName: customerInfo.lastName,
+            phone: customerInfo.phone || undefined,
+            address: customerInfo.address,
+            city: customerInfo.city,
+            state: customerInfo.state,
+            zipCode: customerInfo.zipCode,
+            country: customerInfo.country,
+            items: cart.map(item => ({
+              productId: item.productId,
+              variantId: item.variantId,
+              quantity: item.quantity,
+            })),
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.message || 'Checkout failed');
+        }
+
+        const order = await res.json();
+        setOrderResult(order);
+      }
+
+      // Clear cart and show success
+      clearCart();
+      window.dispatchEvent(new CustomEvent('cart-updated'));
+      setOrderComplete(true);
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong during checkout');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -84,17 +194,8 @@ export default function CheckoutPage() {
     } else if (step === 'shipping') {
       setStep('payment');
     } else {
-      // Process payment
-      setIsProcessing(true);
-
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Clear cart and show success
-      clearCart();
-      window.dispatchEvent(new CustomEvent('cart-updated'));
-      setOrderComplete(true);
-      setIsProcessing(false);
+      // Process payment and create order
+      await processOrder();
     }
   };
 
@@ -142,15 +243,33 @@ export default function CheckoutPage() {
           </div>
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Order Confirmed!</h1>
+        {orderResult && (
+          <div className="bg-gray-50 rounded-lg p-4 mb-6 inline-block text-left">
+            <p className="text-sm text-gray-600">Order Number</p>
+            <p className="font-bold text-lg">{orderResult.orderNumber}</p>
+            <p className="text-sm text-gray-600 mt-2">Total</p>
+            <p className="font-semibold">{formatPrice(orderResult.totalPrice)}</p>
+          </div>
+        )}
         <p className="text-gray-600 mb-8">
-          Thank you for your order. We'll send you a confirmation email shortly.
+          Thank you for your order. We'll send you a confirmation email to {orderResult?.customerEmail || customerInfo.email}.
         </p>
-        <Link
-          href={`/store/${slug}`}
-          className="inline-block px-8 py-3 bg-gray-900 text-white font-semibold rounded-md hover:bg-gray-800 transition-colors"
-        >
-          Continue Shopping
-        </Link>
+        <div className="flex gap-4 justify-center">
+          <Link
+            href={`/store/${slug}`}
+            className="inline-block px-8 py-3 bg-gray-900 text-white font-semibold rounded-md hover:bg-gray-800 transition-colors"
+          >
+            Continue Shopping
+          </Link>
+          {isLoggedIn && (
+            <Link
+              href={`/store/${slug}/account`}
+              className="inline-block px-8 py-3 border border-gray-300 font-semibold rounded-md hover:bg-gray-50 transition-colors"
+            >
+              View Orders
+            </Link>
+          )}
+        </div>
       </div>
     );
   }
@@ -160,19 +279,28 @@ export default function CheckoutPage() {
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
 
       {/* Checkout Mode Notice */}
-      {settings.checkoutMode === 'ACCOUNT_ONLY' && (
+      {settings.checkoutMode === 'ACCOUNT_ONLY' && !isLoggedIn && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-8">
           <p className="text-yellow-800">
             This store requires an account to complete checkout.{' '}
-            <Link href={`/store/${slug}/account/login`} className="underline font-medium">
+            <Link href={`/store/${slug}/account`} className="underline font-medium">
               Log in or create an account
             </Link>
           </p>
         </div>
       )}
 
-      {/* Guest/Account Toggle (only for BOTH mode) */}
-      {settings.checkoutMode === 'BOTH' && (
+      {/* Show logged-in status */}
+      {isLoggedIn && customerEmail && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-8">
+          <p className="text-green-800">
+            ✓ Logged in as <strong>{customerEmail}</strong>
+          </p>
+        </div>
+      )}
+
+      {/* Guest/Account Toggle (only for BOTH mode and not logged in) */}
+      {settings.checkoutMode === 'BOTH' && !isLoggedIn && (
         <div className="flex gap-4 mb-8">
           <button
             onClick={() => setIsGuest(true)}
@@ -184,16 +312,19 @@ export default function CheckoutPage() {
           >
             Checkout as Guest
           </button>
-          <button
-            onClick={() => setIsGuest(false)}
-            className={`px-4 py-2 rounded-md font-medium transition-colors ${
-              !isGuest 
-                ? 'bg-gray-900 text-white' 
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+          <Link
+            href={`/store/${slug}/account`}
+            className="px-4 py-2 rounded-md font-medium transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200"
           >
             Log In
-          </button>
+          </Link>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
+          <p className="text-red-800">{error}</p>
         </div>
       )}
 

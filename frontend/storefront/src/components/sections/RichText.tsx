@@ -1,8 +1,10 @@
 import React from 'react';
 import type { SectionProps } from '../LayoutRenderer';
+import { replaceTemplateVariables } from '../LayoutRenderer';
 
 interface RichTextSettings {
   title?: string;
+  heading?: string; // Alternative name for title
   content?: string;
   text_alignment?: 'left' | 'center' | 'right';
   max_width?: 'small' | 'medium' | 'large' | 'full';
@@ -30,11 +32,21 @@ const ALIGNMENT_CLASSES = {
   right: 'text-right ml-auto',
 };
 
-export default function RichText({ section }: SectionProps) {
+export default function RichText({ section, product, collection }: SectionProps) {
   const settings = section.settings as RichTextSettings;
+
+  // Create context for template variable replacement
+  const context = { product, collection };
+
+  // Helper to replace template variables in strings
+  const replaceVars = (value: string | undefined) => {
+    if (!value) return value;
+    return replaceTemplateVariables(value, context) as string;
+  };
 
   const {
     title,
+    heading,
     content,
     text_alignment = 'center',
     max_width = 'medium',
@@ -42,6 +54,10 @@ export default function RichText({ section }: SectionProps) {
     background_color,
     text_color,
   } = settings;
+
+  // Support both title and heading
+  const resolvedTitle = replaceVars(title || heading);
+  const resolvedContent = replaceVars(content);
 
   const style: React.CSSProperties = {};
   if (background_color) style.backgroundColor = background_color;
@@ -53,16 +69,16 @@ export default function RichText({ section }: SectionProps) {
       style={style}
     >
       <div className={`${WIDTH_CLASSES[max_width]} ${ALIGNMENT_CLASSES[text_alignment]}`}>
-        {title && (
+        {resolvedTitle && (
           <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            {title}
+            {resolvedTitle}
           </h2>
         )}
 
-        {content && (
+        {resolvedContent && (
           <div
             className="prose prose-lg max-w-none"
-            dangerouslySetInnerHTML={{ __html: content }}
+            dangerouslySetInnerHTML={{ __html: resolvedContent }}
           />
         )}
       </div>

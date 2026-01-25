@@ -51,6 +51,9 @@ PROJECT_HANDOFF.md
 *.html
 *.xml
 
+# Uploaded files (user content)
+uploads/
+
 # AI and IDE specific
 .agent/
 .claude/

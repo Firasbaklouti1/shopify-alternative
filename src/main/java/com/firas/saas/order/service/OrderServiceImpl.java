@@ -260,6 +260,90 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public OrderResponse placeGuestOrder(GuestCheckoutRequest request, Long tenantId) {
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new RuntimeException("Cart is empty");
+        }
+
+        // Build shipping address string
+        String shippingAddress = String.format("%s %s, %s, %s, %s %s, %s",
+                request.getFirstName(), request.getLastName(),
+                request.getAddress(), request.getCity(),
+                request.getState(), request.getZipCode(), request.getCountry());
+
+        Order order = Order.builder()
+                .orderNumber("ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .customerEmail(request.getEmail())
+                .status(OrderStatus.PENDING)
+                .totalPrice(BigDecimal.ZERO)
+                .shippingAddress(shippingAddress)
+                .build();
+        order.setTenantId(tenantId);
+
+        BigDecimal grandTotal = BigDecimal.ZERO;
+
+        for (GuestCheckoutRequest.GuestCartItem cartItem : request.getItems()) {
+            ProductVariant variant = productVariantRepository.findById(cartItem.getVariantId())
+                    .orElseThrow(() -> new RuntimeException("Variant not found: " + cartItem.getVariantId()));
+
+            // Validate variant belongs to tenant
+            if (!variant.getTenantId().equals(tenantId)) {
+                throw new RuntimeException("Invalid product variant");
+            }
+
+            if (variant.getStockLevel() < cartItem.getQuantity()) {
+                throw new RuntimeException("Insufficient stock for: " + variant.getName());
+            }
+
+            // Deduct stock
+            variant.setStockLevel(variant.getStockLevel() - cartItem.getQuantity());
+            productVariantRepository.save(variant);
+
+            Product product = variant.getProduct();
+
+            OrderItem orderItem = OrderItem.builder()
+                    .productId(product.getId())
+                    .variantId(variant.getId())
+                    .productName(product.getName())
+                    .variantName(variant.getName())
+                    .sku(variant.getSku())
+                    .price(variant.getPrice())
+                    .quantity(cartItem.getQuantity())
+                    .build();
+
+            order.addItem(orderItem);
+            grandTotal = grandTotal.add(variant.getPrice().multiply(new BigDecimal(cartItem.getQuantity())));
+        }
+
+        order.setTotalPrice(grandTotal);
+        Order savedOrder = orderRepository.save(order);
+
+        // Publish domain event (Observer pattern)
+        try {
+            String tenantSlug = tenantRepository.findById(tenantId)
+                    .map(com.firas.saas.tenant.entity.Tenant::getSlug)
+                    .orElse("unknown");
+
+            java.util.Map<String, Object> data = java.util.Map.of(
+                    "id", savedOrder.getId(),
+                    "orderNumber", savedOrder.getOrderNumber(),
+                    "totalPrice", savedOrder.getTotalPrice(),
+                    "customerEmail", savedOrder.getCustomerEmail(),
+                    "status", savedOrder.getStatus(),
+                    "isGuest", true
+            );
+
+            eventPublisher.publish(com.firas.saas.webhook.entity.Webhook.WebhookEvent.ORDER_CREATED,
+                    data, tenantId, tenantSlug);
+        } catch (Exception e) {
+            System.err.println("Failed to publish ORDER_CREATED event: " + e.getMessage());
+        }
+
+        return mapToOrderResponse(savedOrder);
+    }
+
     private CartResponse mapToCartResponse(Cart cart) {
         return CartResponse.builder()
                 .customerEmail(cart.getCustomerEmail())

@@ -649,3 +649,216 @@ Authorization: Bearer {{merchantToken}}
         }
     });
 %}
+
+### ==================================================
+### 10. CUSTOMER REGISTRATION & AUTH (Phase 2 Addition)
+### ==================================================
+
+### 10.1 Register Customer on Store
+# @name registerCustomer
+POST {{host}}/api/v1/auth/customer/{{storeSlug}}/register
+Content-Type: application/json
+
+{
+  "email": "customer-{{$random.uuid}}@example.com",
+  "password": "customer123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "phone": "555-1234"
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("customerEmail", request.body.email);
+        client.global.set("customerToken", response.body.token);
+        client.log("✓ SUCCESS: Customer registered and logged in");
+
+        client.test("Response contains token", function() {
+            client.assert(response.body.token !== undefined, "token should exist");
+        });
+        client.test("Role is CUSTOMER", function() {
+            client.assert(response.body.role === "ROLE_CUSTOMER", "role should be ROLE_CUSTOMER");
+        });
+    }
+%}
+
+###
+
+### 10.2 Login as Customer
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{customerEmail}}",
+  "password": "customer123"
+}
+
+> {%
+    client.test("Customer login succeeds", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    client.test("Role is CUSTOMER", function() {
+        client.assert(response.body.role === "ROLE_CUSTOMER", "role should be ROLE_CUSTOMER");
+    });
+%}
+
+###
+
+### 10.3 Get My Orders (as customer)
+GET {{host}}/api/v1/orders/my
+Authorization: Bearer {{customerToken}}
+
+> {%
+    client.test("Get my orders succeeds", function() {
+        client.assert(response.status === 200, "Expected 200, got " + response.status);
+    });
+    client.test("Response is array", function() {
+        client.assert(Array.isArray(response.body), "response should be an array");
+    });
+%}
+
+###
+
+### 10.4 Register on Non-Existent Store (should 404)
+POST {{host}}/api/v1/auth/customer/non-existent-store-xyz/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "test123",
+  "firstName": "Test",
+  "lastName": "User"
+}
+
+> {%
+    client.test("Registration on non-existent store returns 404", function() {
+        client.assert(response.status === 404, "Expected 404, got " + response.status);
+    });
+%}
+
+###
+
+### 10.5 Customer Registration - Missing Email (should 400)
+POST {{host}}/api/v1/auth/customer/{{storeSlug}}/register
+Content-Type: application/json
+
+{
+  "password": "customer123",
+  "firstName": "John",
+  "lastName": "Doe"
+}
+
+> {%
+    client.test("Missing email returns 400", function() {
+        client.assert(response.status === 400, "Expected 400, got " + response.status);
+    });
+%}
+
+###
+
+### 10.6 Customer Registration - Short Password (should 400)
+POST {{host}}/api/v1/auth/customer/{{storeSlug}}/register
+Content-Type: application/json
+
+{
+  "email": "short-pass@example.com",
+  "password": "123",
+  "firstName": "John",
+  "lastName": "Doe"
+}
+
+> {%
+    client.test("Short password returns 400", function() {
+        client.assert(response.status === 400, "Expected 400, got " + response.status);
+    });
+%}
+
+###
+
+### ==================================================
+### 11. PRODUCT/CATEGORY IMAGE URL TESTS (Phase 2 Addition)
+### ==================================================
+
+### 11.1 Create Category with imageUrl
+# @name createCategoryWithImage
+POST {{host}}/api/v1/products/categories
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Electronics-{{$random.uuid}}",
+  "slug": "electronics-{{$random.uuid}}",
+  "description": "Electronic gadgets",
+  "imageUrl": "/uploads/categories/electronics.jpg"
+}
+
+> {%
+    if (response.status === 200 || response.status === 201) {
+        client.global.set("categoryId", response.body.id);
+        client.test("Category has imageUrl", function() {
+            client.assert(response.body.imageUrl === "/uploads/categories/electronics.jpg",
+                "imageUrl should be set");
+        });
+    }
+%}
+
+###
+
+### 11.2 Create Product with imageUrl
+# @name createProductWithImage
+POST {{host}}/api/v1/products
+Authorization: Bearer {{merchantToken}}
+Content-Type: application/json
+
+{
+  "name": "Wireless Headphones-{{$random.uuid}}",
+  "slug": "headphones-{{$random.uuid}}",
+  "description": "Premium noise-canceling headphones",
+  "imageUrl": "/uploads/products/headphones.jpg",
+  "categoryId": {{categoryId}},
+  "variants": [
+    {
+      "name": "Black",
+      "sku": "WH-BLK-{{$random.uuid}}",
+      "price": 199.99,
+      "stockLevel": 50
+    }
+  ]
+}
+
+> {%
+    if (response.status === 200 || response.status === 201) {
+        client.global.set("productId", response.body.id);
+        client.global.set("productSlug", response.body.slug);
+        client.test("Product has imageUrl", function() {
+            client.assert(response.body.imageUrl === "/uploads/products/headphones.jpg",
+                "imageUrl should be set");
+        });
+    }
+%}
+
+###
+
+### 11.3 Verify imageUrl in public storefront API
+GET {{host}}/api/v1/storefront/{{storeSlug}}/products/{{productSlug}}
+
+> {%
+    client.test("Public product has imageUrl", function() {
+        client.assert(response.status === 200, "Expected 200");
+        client.assert(response.body.imageUrl !== undefined, "imageUrl should exist");
+    });
+%}
+
+###
+
+### 11.4 Verify imageUrl in collections API
+GET {{host}}/api/v1/storefront/{{storeSlug}}/collections
+
+> {%
+    client.test("Collections have imageUrl field", function() {
+        client.assert(response.status === 200, "Expected 200");
+        if (response.body.length > 0) {
+            client.assert(response.body[0].imageUrl !== undefined, "imageUrl should exist");
+        }
+    });
+%}
