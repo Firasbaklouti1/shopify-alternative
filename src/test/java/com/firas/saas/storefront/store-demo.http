@@ -430,21 +430,23 @@ Content-Type: application/json
 
 {
   "layoutJson": {
-    "sections": {
-      "announcement": {
-        "type": "announcement-bar",
-        "settings": {
+    "content": [
+      {
+        "type": "AnnouncementBar",
+        "props": {
+          "id": "AnnouncementBar-1",
           "text": "Grand Opening Sale! Free shipping on orders over $50!",
-          "bg_color": "#2563EB",
+          "background_color": "#2563EB",
           "text_color": "#FFFFFF",
           "link": "/collections/all",
           "dismissible": true
         }
       },
-      "hero-main": {
-        "type": "hero-banner",
-        "settings": {
-          "title": "Welcome to Demo Store",
+      {
+        "type": "HeroBanner",
+        "props": {
+          "id": "HeroBanner-main",
+          "title": "Welcome to Demo Store teeeeeeeeeeeeeeeeeest",
           "subtitle": "Discover amazing products at unbeatable prices",
           "bg_image": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600",
           "cta_text": "Shop Now",
@@ -456,19 +458,20 @@ Content-Type: application/json
           "text_alignment": "center"
         }
       },
-      "featured-categories": {
-        "type": "collection-list",
-        "settings": {
+      {
+        "type": "CollectionList",
+        "props": {
+          "id": "CollectionList-1",
           "title": "Shop by Category",
           "subtitle": "Browse our curated collections",
-          "collections": ["electronics", "clothing"],
           "columns": 2,
           "show_description": true
         }
       },
-      "featured-products": {
-        "type": "product-grid",
-        "settings": {
+      {
+        "type": "ProductGrid",
+        "props": {
+          "id": "ProductGrid-featured",
           "title": "Featured Products",
           "subtitle": "Our best sellers and new arrivals",
           "collection_handle": "all",
@@ -480,9 +483,10 @@ Content-Type: application/json
           "show_quick_add": true
         }
       },
-      "promo-banner": {
-        "type": "image-with-text",
-        "settings": {
+      {
+        "type": "ImageWithText",
+        "props": {
+          "id": "ImageWithText-promo",
           "image": "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800",
           "title": "Premium Quality Guaranteed",
           "content": "We source only the best products and back everything with our satisfaction guarantee. Shop with confidence!",
@@ -492,9 +496,10 @@ Content-Type: application/json
           "background_color": "#F3F4F6"
         }
       },
-      "electronics-highlight": {
-        "type": "product-grid",
-        "settings": {
+      {
+        "type": "ProductGrid",
+        "props": {
+          "id": "ProductGrid-electronics",
           "title": "Electronics",
           "subtitle": "Latest tech gadgets",
           "collection_handle": "electronics",
@@ -504,9 +509,10 @@ Content-Type: application/json
           "show_compare_price": true
         }
       },
-      "testimonials": {
-        "type": "testimonials",
-        "settings": {
+      {
+        "type": "Testimonials",
+        "props": {
+          "id": "Testimonials-1",
           "title": "What Our Customers Say",
           "testimonials": [
             {
@@ -532,9 +538,10 @@ Content-Type: application/json
           "autoplay_speed": 5
         }
       },
-      "newsletter": {
-        "type": "newsletter",
-        "settings": {
+      {
+        "type": "Newsletter",
+        "props": {
+          "id": "Newsletter-1",
           "title": "Join Our Newsletter",
           "subtitle": "Subscribe to get special offers, free giveaways, and exclusive deals!",
           "placeholder": "Enter your email",
@@ -543,9 +550,10 @@ Content-Type: application/json
           "text_color": "#FFFFFF"
         }
       },
-      "footer": {
-        "type": "footer",
-        "settings": {
+      {
+        "type": "Footer",
+        "props": {
+          "id": "Footer-1",
           "show_social_links": true,
           "show_payment_icons": true,
           "copyright_text": "© 2026 Demo Store. All rights reserved.",
@@ -577,18 +585,9 @@ Content-Type: application/json
           ]
         }
       }
-    },
-    "order": [
-      "announcement",
-      "hero-main",
-      "featured-categories",
-      "featured-products",
-      "promo-banner",
-      "electronics-highlight",
-      "testimonials",
-      "newsletter",
-      "footer"
-    ]
+    ],
+    "root": { "props": { "title": "Home Page" } },
+    "zones": {}
   },
   "seoTitle": "Demo Store | Electronics & Fashion",
   "seoDescription": "Welcome to Demo Store - Your one-stop shop for premium electronics and trendy fashion. Shop smartphones, headphones, clothing and more!"
@@ -632,10 +631,11 @@ Content-Type: application/json
 
 {
   "layoutJson": {
-    "sections": {
-      "product-main": {
-        "type": "product-main",
-        "settings": {
+    "content": [
+      {
+        "type": "ProductMain",
+        "props": {
+          "id": "ProductMain-1",
           "show_vendor": false,
           "show_sku": true,
           "show_quantity_selector": true,
@@ -646,17 +646,19 @@ Content-Type: application/json
           "sticky_add_to_cart": true
         }
       },
-      "product-description": {
-        "type": "rich-text",
-        "settings": {
+      {
+        "type": "RichText",
+        "props": {
+          "id": "RichText-product-desc",
           "heading": "Product Details",
           "content": "{product_description}",
           "text_alignment": "left"
         }
       },
-      "related-products": {
-        "type": "product-grid",
-        "settings": {
+      {
+        "type": "ProductGrid",
+        "props": {
+          "id": "ProductGrid-related",
           "title": "You May Also Like",
           "subtitle": "Similar products you might enjoy",
           "source": "related",
@@ -666,9 +668,10 @@ Content-Type: application/json
           "show_compare_price": true
         }
       },
-      "recently-viewed": {
-        "type": "product-grid",
-        "settings": {
+      {
+        "type": "ProductGrid",
+        "props": {
+          "id": "ProductGrid-recent",
           "title": "Recently Viewed",
           "source": "recently-viewed",
           "limit": 4,
@@ -676,13 +679,9 @@ Content-Type: application/json
           "show_price": true
         }
       }
-    },
-    "order": [
-      "product-main",
-      "product-description",
-      "related-products",
-      "recently-viewed"
-    ]
+    ],
+    "root": { "props": { "title": "Product Page" } },
+    "zones": {}
   },
   "seoTitle": "{product_name} | Demo Store",
   "seoDescription": "{product_description}"
@@ -725,10 +724,11 @@ Content-Type: application/json
 
 {
   "layoutJson": {
-    "sections": {
-      "collection-header": {
-        "type": "hero-banner",
-        "settings": {
+    "content": [
+      {
+        "type": "HeroBanner",
+        "props": {
+          "id": "HeroBanner-collection",
           "title": "{collection_name}",
           "subtitle": "{collection_description}",
           "height": "medium",
@@ -736,43 +736,42 @@ Content-Type: application/json
           "bg_image": "{collection_image}"
         }
       },
-      "collection-filters": {
-        "type": "collection-filters",
-        "settings": {
+      {
+        "type": "CollectionFilters",
+        "props": {
+          "id": "CollectionFilters-1",
           "show_sort": true,
-          "show_filters": true,
-          "filter_options": ["price", "availability", "color", "size"],
-          "sort_options": ["featured", "price-asc", "price-desc", "newest", "best-selling"]
+          "show_filter": true,
+          "filter_type": "dropdown"
         }
       },
-      "collection-products": {
-        "type": "product-grid",
-        "settings": {
+      {
+        "type": "ProductGrid",
+        "props": {
+          "id": "ProductGrid-collection",
           "source": "collection",
           "columns": 4,
-          "products_per_page": 12,
+          "limit": 12,
           "show_price": true,
           "show_compare_price": true,
           "show_quick_add": true,
-          "pagination": true
+          "show_sale_badge": true,
+          "image_ratio": "square"
         }
       },
-      "collection-description": {
-        "type": "rich-text",
-        "settings": {
+      {
+        "type": "RichText",
+        "props": {
+          "id": "RichText-collection-desc",
           "heading": "About {collection_name}",
           "content": "{collection_description}",
           "text_alignment": "center",
           "background_color": "#F9FAFB"
         }
       }
-    },
-    "order": [
-      "collection-header",
-      "collection-filters",
-      "collection-products",
-      "collection-description"
-    ]
+    ],
+    "root": { "props": { "title": "Collection Page" } },
+    "zones": {}
   },
   "seoTitle": "{collection_name} | Demo Store",
   "seoDescription": "Shop our {collection_name} collection at Demo Store. {collection_description}"
@@ -822,10 +821,11 @@ Content-Type: application/json
   "handle": "about-us",
   "name": "About Us",
   "layoutJson": {
-    "sections": {
-      "hero": {
-        "type": "hero-banner",
-        "settings": {
+    "content": [
+      {
+        "type": "HeroBanner",
+        "props": {
+          "id": "HeroBanner-about",
           "title": "About Demo Store",
           "subtitle": "Our story, mission, and values",
           "height": "medium",
@@ -833,34 +833,38 @@ Content-Type: application/json
           "overlay_opacity": 0.6
         }
       },
-      "story": {
-        "type": "image-with-text",
-        "settings": {
+      {
+        "type": "ImageWithText",
+        "props": {
+          "id": "ImageWithText-story",
           "image": "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=800",
           "title": "Our Story",
           "content": "Founded in 2020, Demo Store started with a simple mission: to provide high-quality products at fair prices with exceptional customer service. What began as a small online shop has grown into a trusted destination for electronics and fashion enthusiasts worldwide.",
           "image_position": "left"
         }
       },
-      "mission": {
-        "type": "rich-text",
-        "settings": {
+      {
+        "type": "RichText",
+        "props": {
+          "id": "RichText-mission",
           "heading": "Our Mission",
           "content": "We believe everyone deserves access to quality products. Our mission is to curate the best selection of electronics and clothing, ensuring every item meets our strict quality standards. We're committed to sustainability, ethical sourcing, and creating a positive impact in our community.",
           "text_alignment": "center",
           "background_color": "#F3F4F6"
         }
       },
-      "values": {
-        "type": "rich-text",
-        "settings": {
+      {
+        "type": "RichText",
+        "props": {
+          "id": "RichText-values",
           "heading": "Our Values",
           "content": "Quality First: Every product is carefully vetted. Customer Focus: Your satisfaction is our priority. Transparency: Honest pricing, no hidden fees. Sustainability: Eco-friendly packaging and practices.",
           "text_alignment": "left"
         }
       }
-    },
-    "order": ["hero", "story", "mission", "values"]
+    ],
+    "root": { "props": { "title": "About Us" } },
+    "zones": {}
   },
   "seoTitle": "About Us | Demo Store",
   "seoDescription": "Learn about Demo Store's story, mission, and commitment to quality products and exceptional customer service."
@@ -901,25 +905,28 @@ Content-Type: application/json
   "handle": "contact",
   "name": "Contact Us",
   "layoutJson": {
-    "sections": {
-      "hero": {
-        "type": "hero-banner",
-        "settings": {
+    "content": [
+      {
+        "type": "HeroBanner",
+        "props": {
+          "id": "HeroBanner-contact",
           "title": "Contact Us",
           "subtitle": "We'd love to hear from you",
           "height": "small"
         }
       },
-      "contact-info": {
-        "type": "rich-text",
-        "settings": {
+      {
+        "type": "RichText",
+        "props": {
+          "id": "RichText-contact-info",
           "heading": "Get in Touch",
           "content": "Email: support@demostore.com | Phone: +1 (555) 123-4567 | Address: 123 Demo Street, Commerce City, CA 90210 | Hours: Monday - Friday, 9 AM - 6 PM PST",
           "text_alignment": "center"
         }
       }
-    },
-    "order": ["hero", "contact-info"]
+    ],
+    "root": { "props": { "title": "Contact Us" } },
+    "zones": {}
   },
   "seoTitle": "Contact Us | Demo Store",
   "seoDescription": "Contact Demo Store for questions, support, or feedback. We're here to help!"

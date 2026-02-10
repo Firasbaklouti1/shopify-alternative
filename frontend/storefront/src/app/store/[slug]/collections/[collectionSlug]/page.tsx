@@ -1,5 +1,5 @@
 import { getPageLayout, getProducts, getCollection } from '@/lib/api';
-import LayoutRenderer from '@/components/LayoutRenderer';
+import PuckRenderer from '@/components/PuckRenderer';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
@@ -30,7 +30,6 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
   const { slug, collectionSlug } = await params;
 
   try {
-    // Fetch layout, collection, and products in parallel
     const [layout, collection, productsData] = await Promise.all([
       getPageLayout(slug, 'collection'),
       getCollection(slug, collectionSlug),
@@ -39,7 +38,6 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
 
     return (
       <div>
-        {/* Collection Header */}
         <div className="bg-gray-50 py-12 px-6 md:px-12 text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">{collection.name}</h1>
           {collection.description && (
@@ -50,9 +48,8 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
           </p>
         </div>
 
-        {/* Render page layout with products */}
-        <LayoutRenderer
-          layout={layout}
+        <PuckRenderer
+          data={layout}
           storeSlug={slug}
           collection={collection}
           products={productsData.products}

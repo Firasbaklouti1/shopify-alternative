@@ -174,10 +174,11 @@ Content-Type: application/json
 
 {
   "layoutJson": {
-    "sections": {
-      "hero-1": {
-        "type": "hero-banner",
-        "settings": {
+    "content": [
+      {
+        "type": "HeroBanner",
+        "props": {
+          "id": "HeroBanner-1",
           "title": "Welcome to Our Amazing Store",
           "subtitle": "Discover the best products at unbeatable prices",
           "bg_image": "/uploads/hero-banner.jpg",
@@ -187,9 +188,10 @@ Content-Type: application/json
           "height": "large"
         }
       },
-      "featured-products": {
-        "type": "product-grid",
-        "settings": {
+      {
+        "type": "ProductGrid",
+        "props": {
+          "id": "ProductGrid-1",
           "title": "Featured Products",
           "collection_handle": "featured",
           "limit": 8,
@@ -198,8 +200,9 @@ Content-Type: application/json
           "show_vendor": false
         }
       }
-    },
-    "order": ["hero-1", "featured-products"]
+    ],
+    "root": { "props": { "title": "Home Page" } },
+    "zones": {}
   },
   "seoTitle": "Home | Storefront Test Store",
   "seoDescription": "Welcome to the best online store for amazing products"
@@ -237,25 +240,28 @@ Content-Type: application/json
   "handle": "about-us",
   "name": "About Us",
   "layoutJson": {
-    "sections": {
-      "hero": {
-        "type": "hero-banner",
-        "settings": {
+    "content": [
+      {
+        "type": "HeroBanner",
+        "props": {
+          "id": "HeroBanner-about",
           "title": "About Our Company",
           "subtitle": "Our story and mission",
           "height": "medium"
         }
       },
-      "content": {
-        "type": "rich-text",
-        "settings": {
+      {
+        "type": "RichText",
+        "props": {
+          "id": "RichText-about",
           "heading": "Our Story",
           "content": "Founded in 2020, we set out to create the best shopping experience...",
           "text_alignment": "left"
         }
       }
-    },
-    "order": ["hero", "content"]
+    ],
+    "root": { "props": { "title": "About Us" } },
+    "zones": {}
   },
   "seoTitle": "About Us | Storefront Test Store",
   "seoDescription": "Learn about our company, mission, and team"
@@ -307,8 +313,8 @@ Authorization: Bearer {{merchantToken}}
         client.assert(response.status === 200, "Expected 200, got " + response.status);
     });
     client.test("Has hero-banner section", function() {
-        var hasHero = response.body.some(s => s.type === "hero-banner");
-        client.assert(hasHero, "Expected hero-banner section");
+        var hasHero = response.body.some(s => s.type === "hero-banner" || s.type === "HeroBanner");
+        client.assert(hasHero, "Expected hero-banner or HeroBanner section");
     });
 %}
 
@@ -494,10 +500,14 @@ Content-Type: application/json
 
 {
   "layoutJson": {
-    "sections": {
-      "hero-1": { "type": "hero-banner", "settings": { "title": "HACKED TITLE" } }
-    },
-    "order": ["hero-1"]
+    "content": [
+      {
+        "type": "HeroBanner",
+        "props": { "id": "HeroBanner-1", "title": "HACKED TITLE" }
+      }
+    ],
+    "root": { "props": { "title": "Hacked" } },
+    "zones": {}
   }
 }
 
@@ -516,14 +526,17 @@ Authorization: Bearer {{merchantToken}}
 > {%
     client.test("Merchant A Data Intact", function() {
         client.assert(response.status === 200, "Expected 200");
-        // layoutJson contains the sections
-        var sections = response.body.layoutJson ? response.body.layoutJson.sections : null;
-        if (sections && sections["hero-1"]) {
-            var title = sections["hero-1"].settings.title;
-            client.assert(title !== "HACKED TITLE",
-                "SECURITY FAILURE: Hacker overwrote Merchant A's layout! Found: " + title);
+        // layoutJson contains content array in Puck format
+        var content = response.body.layoutJson ? response.body.layoutJson.content : null;
+        if (content && content.length > 0) {
+            var hero = content.find(function(c) { return c.type === "HeroBanner"; });
+            if (hero) {
+                var title = hero.props.title;
+                client.assert(title !== "HACKED TITLE",
+                    "SECURITY FAILURE: Hacker overwrote Merchant A's layout! Found: " + title);
+            }
         }
-        // If no sections exist, that's OK - merchant A never created hero-1 with VERSION 1 TITLE in this test run
+        // If no content exists, that's OK - merchant A never created layout in this test run
     });
 %}
 
@@ -552,10 +565,14 @@ Content-Type: application/json
 
 {
   "layoutJson": {
-    "sections": {
-      "hero-1": { "type": "hero-banner", "settings": { "title": "ROLLBACK TEST V1" } }
-    },
-    "order": ["hero-1"]
+    "content": [
+      {
+        "type": "HeroBanner",
+        "props": { "id": "HeroBanner-1", "title": "ROLLBACK TEST V1" }
+      }
+    ],
+    "root": { "props": { "title": "Rollback V1" } },
+    "zones": {}
   }
 }
 
@@ -577,10 +594,14 @@ Content-Type: application/json
 
 {
   "layoutJson": {
-    "sections": {
-      "hero-1": { "type": "hero-banner", "settings": { "title": "ROLLBACK TEST V2" } }
-    },
-    "order": ["hero-1"]
+    "content": [
+      {
+        "type": "HeroBanner",
+        "props": { "id": "HeroBanner-1", "title": "ROLLBACK TEST V2" }
+      }
+    ],
+    "root": { "props": { "title": "Rollback V2" } },
+    "zones": {}
   }
 }
 
@@ -594,12 +615,13 @@ Authorization: Bearer {{merchantToken}}
 
 > {%
     client.test("V2 is now live", function() {
-        var sections = response.body.layoutJson ? response.body.layoutJson.sections : null;
-        if (sections && sections["hero-1"]) {
-            client.assert(sections["hero-1"].settings.title === "ROLLBACK TEST V2",
-                "Expected ROLLBACK TEST V2, got " + sections["hero-1"].settings.title);
+        var content = response.body.layoutJson ? response.body.layoutJson.content : null;
+        if (content && content.length > 0) {
+            var hero = content.find(function(c) { return c.type === "HeroBanner"; });
+            client.assert(hero && hero.props.title === "ROLLBACK TEST V2",
+                "Expected ROLLBACK TEST V2, got " + (hero ? hero.props.title : "no hero"));
         } else {
-            client.assert(false, "No sections found in response");
+            client.assert(false, "No content found in response");
         }
     });
 %}
@@ -639,13 +661,18 @@ Authorization: Bearer {{merchantToken}}
 
 > {%
     client.test("Rollback Successful", function() {
-        var sections = response.body.sections;
-        if (sections && sections["hero-1"]) {
-            var title = sections["hero-1"].settings.title;
-            client.assert(title === "ROLLBACK TEST V1",
-                "Rollback Failed! Expected 'ROLLBACK TEST V1', got: " + title);
+        var content = response.body.content;
+        if (content && content.length > 0) {
+            var hero = content.find(function(c) { return c.type === "HeroBanner"; });
+            if (hero) {
+                var title = hero.props.title;
+                client.assert(title === "ROLLBACK TEST V1",
+                    "Rollback Failed! Expected 'ROLLBACK TEST V1', got: " + title);
+            } else {
+                client.assert(false, "No HeroBanner found after rollback");
+            }
         } else {
-            client.assert(false, "No sections found after rollback");
+            client.assert(false, "No content found after rollback");
         }
     });
 %}

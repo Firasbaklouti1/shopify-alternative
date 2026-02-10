@@ -1,0 +1,28 @@
+---
+title: drawerItem
+---
+
+# drawerItem
+
+Override an item within the component drawer.
+
+```tsx copy
+const overrides = {
+  drawerItem: ({ name }) => <div>{name}</div>,
+};
+```
+
+## Props
+
+| Prop                    | Example    | Type      |
+| ----------------------- | ---------- | --------- |
+| [`children`](#children) | `<div />`  | ReactNode |
+| [`name`](#name)         | `"Button"` | ReactNode |
+
+### `children`
+
+The default node for the drawer item.
+
+### `name`
+
+The name of the drawer item.

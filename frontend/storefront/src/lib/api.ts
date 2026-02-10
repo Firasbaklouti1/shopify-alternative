@@ -3,6 +3,11 @@
  * All API calls go through this module.
  */
 
+import type { Data } from '@measured/puck';
+import { convertLegacyToPuck } from '@shared/lib/puck-utils';
+
+export type PuckData = Data;
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export interface StoreSettings {
@@ -34,30 +39,6 @@ export interface StoreSettings {
     name: string;
     cssVariables: Record<string, string>;
   };
-}
-
-export interface SectionSettings {
-  [key: string]: unknown;
-}
-
-export interface Block {
-  type: string;
-  order: number;
-  settings?: Record<string, unknown>;
-}
-
-export interface Section {
-  type: string;
-  settings: SectionSettings;
-  blocks?: Record<string, Block>;
-  block_order?: string[];
-}
-
-export interface PageLayout {
-  name: string;
-  type: string;
-  sections: Record<string, Section>;
-  order: string[];
 }
 
 export interface ProductVariant {
@@ -130,28 +111,32 @@ export async function getStoreSettings(slug: string): Promise<StoreSettings> {
   return res.json();
 }
 
-export async function getPageLayout(slug: string, pageType: string = 'home'): Promise<PageLayout> {
+export async function getPageLayout(slug: string, pageType: string = 'home'): Promise<PuckData> {
   const res = await fetch(`${API_BASE_URL}/api/v1/storefront/${slug}/layout?page=${pageType}`, {
-    next: { revalidate: 60 },
+    cache: 'no-store',
   });
 
   if (!res.ok) {
     throw new Error(`Failed to fetch page layout: ${res.status}`);
   }
 
-  return res.json();
+  const data = await res.json();
+
+  return convertLegacyToPuck(data) || { content: [], root: { props: { title: '' } }, zones: {} };
 }
 
-export async function getCustomPageLayout(slug: string, handle: string): Promise<PageLayout> {
+export async function getCustomPageLayout(slug: string, handle: string): Promise<PuckData> {
   const res = await fetch(`${API_BASE_URL}/api/v1/storefront/${slug}/pages/${handle}`, {
-    next: { revalidate: 60 },
+    cache: 'no-store',
   });
 
   if (!res.ok) {
     throw new Error(`Failed to fetch custom page layout: ${res.status}`);
   }
 
-  return res.json();
+  const data = await res.json();
+
+  return convertLegacyToPuck(data) || { content: [], root: { props: { title: '' } }, zones: {} };
 }
 
 export async function getProducts(

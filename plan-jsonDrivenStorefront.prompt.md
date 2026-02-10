@@ -1,10 +1,10 @@
 # Plan: JSON-Driven Storefront with Headless Architecture
 
-Build a **Shopify 2.0-equivalent** storefront system using Spring Boot as a headless API, Next.js as the edge renderer, and an iframe-based visual editor with Web Components for app integrations. AI generation support will be designed in but implemented later.
+Build a **Shopify 2.0-equivalent** storefront system using Spring Boot as a headless API, Next.js as the edge renderer, and **Puck** (`@measured/puck`) as the visual drag-and-drop page builder. AI generation support will be designed in but implemented later.
 
 ## TL;DR
 
-Your Spring Boot backend becomes a **pure Headless Storefront API** serving JSON layout configurations. A separate **Next.js App Router** application renders these layouts using React Server Components. The visual editor uses **iframe + postMessage** for real-time preview. Third-party apps integrate via **Web Components** for safe, isolated UI injection. Merchants can configure `checkoutMode` (guest/account/both) in store settings.
+Your Spring Boot backend is a **pure Headless Storefront API** serving Puck-format JSON layout configurations. A **Next.js storefront app** (`frontend/storefront/`) renders these layouts using Puck's `<Render>` component. A separate **Next.js admin app** (`frontend/admin/`) provides the Puck visual editor for merchants. Shared section components live in `frontend/shared/`. Third-party apps integrate via **Web Components**. Merchants can configure `checkoutMode` (guest/account/both) in store settings.
 
 ---
 
@@ -12,32 +12,42 @@ Your Spring Boot backend becomes a **pure Headless Storefront API** serving JSON
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         MERCHANT ADMIN                               │
-│  ┌─────────────────────┐    postMessage    ┌─────────────────────┐  │
-│  │   Editor Sidebar    │◄──────────────────►│   Storefront        │  │
-│  │   (React App)       │                    │   (iframe preview)  │  │
-│  └─────────────────────┘                    └─────────────────────┘  │
-│            │                                          │              │
-│            │ Save Layout                              │              │
-└────────────┼──────────────────────────────────────────┼──────────────┘
-             │                                          │
-             ▼                                          ▼
+│                    MERCHANT ADMIN (frontend/admin, port 3001)        │
+│  ┌─────────────────────┐                                            │
+│  │  Login Page          │  JWT auth via Spring Boot                  │
+│  ├─────────────────────┤                                            │
+│  │  Dashboard           │  Page type list + custom pages             │
+│  ├─────────────────────┤                                            │
+│  │  Puck Editor         │  <Puck config={} data={} metadata={} />   │
+│  │  - Drag & drop       │  Auto-saves draft (2s debounce)           │
+│  │  - Field editing     │  Publish button → copies draft to live    │
+│  │  - Viewport preview  │  Mobile / Tablet / Desktop                │
+│  └─────────────────────┘                                            │
+│            │ Save (PUT)          │ Publish (POST)                    │
+└────────────┼─────────────────────┼──────────────────────────────────┘
+             ▼                     ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    SPRING BOOT (Headless API)                        │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │
-│  │ Storefront API  │  │ Layout API      │  │ Existing APIs       │  │
-│  │ /api/storefront │  │ /api/layouts    │  │ (Products, Orders)  │  │
-│  └─────────────────┘  └─────────────────┘  └─────────────────────┘  │
+│                    SPRING BOOT (Headless API, port 8080)             │
+│  ┌─────────────────────┐  ┌─────────────────┐                      │
+│  │ Public Storefront    │  │ Layout Editor    │                      │
+│  │ /api/v1/storefront   │  │ /api/v1/stores   │                      │
+│  │ (No Auth)            │  │ (MERCHANT Role)  │                      │
+│  └─────────────────────┘  └─────────────────┘                      │
+│  Stores Puck JSON as Map<String,Object> in TEXT columns              │
 └─────────────────────────────────────────────────────────────────────┘
-             │                                          │
-             ▼                                          ▼
+             │
+             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    NEXT.JS STOREFRONT (Edge)                         │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │
-│  │ Layout Renderer │  │ Section         │  │ App Block Loader    │  │
-│  │ (RSC)           │  │ Components      │  │ (Web Components)    │  │
-│  └─────────────────┘  └─────────────────┘  └─────────────────────┘  │
+│                    STOREFRONT (frontend/storefront, port 3000)        │
+│  <Render config={puckConfig} data={layout} metadata={...} />        │
+│  Uses same shared components as editor for WYSIWYG consistency       │
 └─────────────────────────────────────────────────────────────────────┘
+
+Shared Components (frontend/shared/):
+  components/sections/ → 12 Puck-compatible React components
+  lib/puck-config.tsx  → Puck Config with fields, categories, render fns
+  lib/puck-utils.ts    → Legacy format converter
+  lib/api.ts           → API client for storefront endpoints
 ```
 
 ---
@@ -137,59 +147,55 @@ Theme (global, no tenantId)
 
 ---
 
-## JSON Layout Schema (Final)
+## JSON Layout Schema (Puck Format)
 
 ```json
 {
-  "name": "Home Page",
-  "type": "home",
-  "sections": {
-    "hero-1": {
-      "type": "hero-banner",
-      "settings": {
-        "title": "Welcome to {{store_name}}",
+  "content": [
+    {
+      "type": "HeroBanner",
+      "props": {
+        "id": "HeroBanner-abc123",
+        "title": "Welcome to Our Store",
         "subtitle": "Shop our latest collection",
         "bg_image": "/uploads/hero.jpg",
         "cta_text": "Shop Now",
         "cta_link": "/collections/all",
-        "overlay_opacity": 0.4
+        "overlay_opacity": 0.4,
+        "text_color": "light",
+        "text_alignment": "center",
+        "height": "large"
       }
     },
-    "featured-products": {
-      "type": "product-grid",
-      "settings": {
+    {
+      "type": "ProductGrid",
+      "props": {
+        "id": "ProductGrid-def456",
         "title": "Featured Products",
         "collection_handle": "featured",
         "columns": 4,
         "limit": 8,
         "show_price": true,
-        "show_vendor": false
+        "show_vendor": false,
+        "image_ratio": "square"
       }
     },
-    "product-main": {
-      "type": "product-main",
-      "settings": { "gallery_position": "left" },
-      "blocks": {
-        "title": { "type": "title", "order": 0 },
-        "price": { "type": "price", "order": 1 },
-        "variant_picker": { "type": "variant_selector", "order": 2 },
-        "buy_buttons": { "type": "buy_buttons", "order": 3 }
-      },
-      "block_order": ["title", "price", "variant_picker", "buy_buttons"]
-    },
-    "wishlist-app": {
-      "type": "app-block",
-      "settings": {
+    {
+      "type": "AppBlock",
+      "props": {
+        "id": "AppBlock-ghi789",
         "app_id": "wishlist-pro",
         "script_url": "https://cdn.wishlistpro.com/widget.js",
-        "tag_name": "wishlist-button",
-        "props": { "product-id": "{{product.id}}" }
+        "tag_name": "wishlist-button"
       }
     }
-  },
-  "order": ["hero-1", "featured-products", "wishlist-app"]
+  ],
+  "root": { "props": { "title": "Home Page" } },
+  "zones": {}
 }
 ```
+
+> **Legacy format** (`{sections, order}`) is auto-converted to Puck format by `convertLegacyToPuck()` in `frontend/shared/lib/puck-utils.ts`.
 
 ---
 
@@ -198,7 +204,7 @@ Theme (global, no tenantId)
 ```
 shopify_alternative/
 ├── src/main/java/com/firas/saas/
-│   └── storefront/                    # NEW MODULE
+│   └── storefront/                    # STOREFRONT MODULE
 │       ├── controller/
 │       │   ├── StorefrontController.java      # Public API (no auth)
 │       │   └── LayoutEditorController.java    # Merchant API (auth required)
@@ -217,34 +223,51 @@ shopify_alternative/
 │           └── ComponentRegistry.java         # Available section types
 │
 ├── frontend/
-│   ├── storefront/                    # Next.js Storefront App
-│   │   ├── app/
-│   │   │   ├── store/[slug]/
-│   │   │   │   ├── page.tsx           # Home page
-│   │   │   │   ├── products/[handle]/page.tsx
-│   │   │   │   ├── collections/[handle]/page.tsx
-│   │   │   │   ├── cart/page.tsx
-│   │   │   │   └── checkout/page.tsx
-│   │   │   └── layout.tsx
-│   │   ├── components/
-│   │   │   ├── sections/              # Section components
-│   │   │   │   ├── HeroBanner.tsx
-│   │   │   │   ├── ProductGrid.tsx
-│   │   │   │   ├── ProductMain.tsx
-│   │   │   │   └── ...
-│   │   │   ├── blocks/                # Block components
-│   │   │   ├── AppBlockLoader.tsx     # Web Component loader
-│   │   │   └── LayoutRenderer.tsx     # JSON → Components mapper
+│   ├── shared/                        # SHARED COMPONENT LIBRARY
+│   │   ├── components/sections/       # 12 Puck-compatible section components
+│   │   │   ├── HeroBanner.tsx
+│   │   │   ├── ProductGrid.tsx
+│   │   │   ├── ProductMain.tsx
+│   │   │   ├── CollectionList.tsx
+│   │   │   ├── CollectionFilters.tsx
+│   │   │   ├── RichText.tsx
+│   │   │   ├── ImageWithText.tsx
+│   │   │   ├── Newsletter.tsx
+│   │   │   ├── Testimonials.tsx
+│   │   │   ├── AnnouncementBar.tsx
+│   │   │   ├── Footer.tsx
+│   │   │   ├── AppBlock.tsx
+│   │   │   └── index.ts
 │   │   └── lib/
-│   │       ├── api.ts                 # Spring Boot API client
-│   │       └── editor-bridge.ts       # postMessage handler
+│   │       ├── puck-config.tsx        # Puck Config (fields, categories, render)
+│   │       ├── puck-utils.ts          # Legacy → Puck format converter
+│   │       ├── api.ts                 # API client for storefront endpoints
+│   │       └── template-vars.ts       # Template variable resolution
 │   │
-│   └── admin/                         # Admin Dashboard (separate or same app)
-│       └── editor/
-│           ├── EditorPage.tsx
-│           ├── SectionSidebar.tsx
-│           ├── SettingsPanel.tsx
-│           └── PreviewIframe.tsx
+│   ├── admin/                         # PUCK EDITOR APP (port 3001)
+│   │   └── src/
+│   │       ├── app/
+│   │       │   ├── page.tsx           # Redirect to login
+│   │       │   ├── login/page.tsx     # JWT auth login form
+│   │       │   ├── dashboard/page.tsx # Page type list with edit links
+│   │       │   └── editor/[slug]/[pageType]/page.tsx  # Puck editor
+│   │       └── lib/
+│   │           └── auth.tsx           # Auth context provider
+│   │
+│   └── storefront/                    # PUBLIC STOREFRONT (port 3000)
+│       └── src/
+│           ├── app/store/[slug]/
+│           │   ├── page.tsx           # Home page (PuckRenderer)
+│           │   ├── products/[productSlug]/page.tsx
+│           │   ├── collections/[collectionSlug]/page.tsx
+│           │   ├── pages/[handle]/page.tsx
+│           │   ├── cart/page.tsx
+│           │   ├── checkout/page.tsx
+│           │   └── account/page.tsx
+│           ├── components/
+│           │   └── PuckRenderer.tsx   # Wrapper around Puck <Render>
+│           └── lib/
+│               └── api.ts            # Storefront API client (PuckData type)
 ```
 
 ---
@@ -254,10 +277,11 @@ shopify_alternative/
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Checkout Mode | Merchant configurable (GUEST_ONLY, ACCOUNT_ONLY, BOTH) | Flexibility for different business models |
-| Frontend Framework | Next.js App Router | SSR/ISR for SEO, React Server Components for performance |
+| Frontend Framework | Next.js 16.1.4 App Router | SSR/ISR for SEO, Turbopack for fast dev |
 | App Integration | Web Components (Custom Elements) | Safe isolation, Shadow DOM, CSP compatible |
-| Visual Editor | iframe + postMessage | Real-time preview without page reload, Shopify-standard approach |
-| Drag-and-Drop Library | dnd-kit | Lightweight, accessible, full control over UX |
+| Visual Editor | **Puck** (`@measured/puck` v0.20.2) | Open-source, React-native drag-and-drop, built-in field editing, viewport preview, undo/redo |
+| Component Sharing | `frontend/shared/` with TS path aliases + `transpilePackages` | WYSIWYG consistency between editor and storefront |
+| Layout Format | Puck native `{content, root, zones}` | Replaced `{sections, order}`, auto-conversion for legacy data |
 | AI Generation | Designed in, implemented later | Placeholder endpoint ready for LLM integration |
 
 ---
@@ -295,25 +319,69 @@ shopify_alternative/
 - [x] Add collections listing page
 - [x] Implement editor bridge for postMessage communication
 
-### Plan: Fix Phase 2 Storefront Bugs
-Address 5 issues from manual testing: React Server Component onChange violation, missing account/custom pages routes, CORS error on checkout, and missing images. All routes under /store/[slug]/* only.
-Steps
-- [ ] Extract sort dropdown to Client Component: Create SortDropdown.tsx in components/ with 'use client', move the <select onChange> (lines 100-114) from products/page.tsx. Import and render in the server component.
-- [ ] Add imageUrl field to Product and Category entities: Add private String imageUrl; column to Product.java and Category.java. Update DTOs: ProductRequest, ProductResponse, CategoryRequest, CategoryResponse. Update service mappers.
-- [ ] Add CORS configuration: Create CorsConfig.java implementing WebMvcConfigurer with addCorsMappings() allowing http://localhost:3000. Update SecurityConfig.java to enable .cors(Customizer.withDefaults()).
-- [ ] Add static image serving: Add addResourceHandlers() in the new CorsConfig.java to serve /uploads/** from file:./uploads/. Create uploads/ directory and add to .gitignore.
-- [ ] Add customer self-registration endpoint: Add POST /api/v1/auth/customer/{storeSlug}/register to AuthController.java. Create CustomerSignupRequest DTO. Creates both a User (with Role.CUSTOMER) and a linked Customer record for the tenant. This bridges the User-Customer gap.
-- [ ] Create /store/[slug]/account route: Add account/page.tsx as a client component with login/register forms. Call existing /api/v1/auth/login and new customer registration endpoint. Show "my orders" after login using /api/v1/orders/my.
-- [ ] Create /store/[slug]/pages/[handle] route: Add pages/[handle]/page.tsx that fetches custom page layout via getCustomPageLayout() and renders using LayoutRenderer.
-- [ ] Add test.http files: Create src/test/java/com/firas/saas/storefront/test.http with scenarios for storefront APIs, CORS preflight, customer auth. Follow project test.http pattern with assertions.
-- [ ] Update documentation: Update Product README, Customer README, Security README, Storefront README, Frontend README, and DOCUMENTATION.md with new fields, endpoints, routes, and date (January 25, 2026).
 
-### Phase 3: Visual Editor
-- [ ] Create Editor page with iframe preview
-- [ ] Implement postMessage communication protocol
-- [ ] Build drag-and-drop with dnd-kit
-- [ ] Create settings panel for section configuration
-- [ ] Add Save/Publish workflow
+### Phase 3: Puck Visual Editor Integration ✅ COMPLETED (February 2026)
+
+Replaced the original iframe + postMessage + dnd-kit editor plan with **Puck** (`@measured/puck` v0.20.2), an open-source React drag-and-drop page builder.
+
+**Architecture:**
+```
+frontend/admin/          ← Puck editor app (merchant-facing, port 3001)
+  ├── Login page         ← Auth form → gets JWT token
+  ├── Dashboard          ← Page type list with edit links
+  └── Editor page        ← <Puck> component with full drag-drop UI
+        │
+        │  Save (PUT /api/v1/stores/layouts/{pageType})
+        │  Publish (POST /api/v1/stores/layouts/{pageType}/publish)
+        │  Load (GET /api/v1/stores/layouts/{pageType}/draft)
+        ▼
+Spring Boot Backend      ← Stores Puck-format JSON (no schema validation)
+        │
+        │  GET /api/v1/storefront/{slug}/layout?page={type}
+        ▼
+frontend/storefront/     ← Uses <Render> from @measured/puck (port 3000)
+  └── <Render config={puckConfig} data={puckData} metadata={...} />
+```
+
+**Puck Data Format (replaces old `{sections, order}`):**
+```json
+{
+  "content": [
+    { "type": "HeroBanner", "props": { "id": "HeroBanner-1", "title": "Welcome", ... } },
+    { "type": "ProductGrid", "props": { "id": "ProductGrid-1", "title": "Featured", ... } }
+  ],
+  "root": { "props": { "title": "Home Page" } },
+  "zones": {}
+}
+```
+
+**What was built:**
+- [x] Created `frontend/admin/` Next.js app with login, dashboard, and Puck editor pages
+- [x] Created `frontend/shared/` with 12 section components, puck-config, api client, and puck-utils
+- [x] Refactored all 12 section components from `SectionProps` wrapper to flat Puck props with `puck.metadata`
+- [x] Created `PuckRenderer.tsx` in storefront using Puck's `<Render>` component
+- [x] Updated all storefront pages (home, product, collection, custom) to use PuckRenderer
+- [x] Added legacy `{sections, order}` → Puck `{content, root, zones}` auto-conversion (`puck-utils.ts`)
+- [x] Updated all test.http and store-demo.http payloads to Puck format
+- [x] Updated backend default layouts to Puck format (`PageLayoutServiceImpl.java`)
+- [x] Deleted deprecated files: `LayoutRenderer.tsx`, `editor-bridge.ts`, `AppBlockLoader.tsx`
+- [x] Configured monorepo module resolution with `turbopack.root` and `transpilePackages`
+
+**12 Puck Components (shared between editor and storefront):**
+| Component | Category | Description |
+|-----------|----------|-------------|
+| HeroBanner | Hero | Image/video hero with CTA buttons |
+| AnnouncementBar | Hero | Top promotional banner |
+| ProductGrid | Commerce | Product grid with collection filtering |
+| ProductMain | Commerce | Product detail with gallery and variants |
+| CollectionList | Commerce | Collection cards grid |
+| CollectionFilters | Commerce | Sort and filter controls |
+| RichText | Content | Custom text/HTML content |
+| ImageWithText | Content | Side-by-side image and text |
+| Newsletter | Content | Email signup form |
+| Testimonials | Social Proof | Customer reviews grid/carousel |
+| Footer | Layout | Links, social, copyright |
+| AppBlock | Integrations | Third-party Web Component loader |
 
 ### Phase 4: Polish & AI (Future)
 - [ ] Add PageLayoutVersion for undo/rollback

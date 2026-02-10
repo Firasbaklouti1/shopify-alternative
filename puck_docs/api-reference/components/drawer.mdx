@@ -1,0 +1,45 @@
+---
+title: <Drawer>
+---
+
+import { PuckPreview } from "@/docs/components/Preview";
+import { Puck, Drawer } from "@/puck";
+
+# \<Drawer\>
+
+A list of items that can be dragged into a [`<Puck.Preview>`](puck-preview). Used for composing custom Puck UIs.
+
+<PuckPreview
+  config={{ components: { Orange: { render: () => <div>Orange</div> } } }}
+  data={{ root: { props: {} }, content: [] }}
+>
+  <Drawer>
+    <Drawer.Item name="Orange" />
+  </Drawer>
+</PuckPreview>
+
+```tsx {6-8} /Drawer/1 copy
+import { Puck, Drawer } from "@puckeditor/core";
+
+export function Editor() {
+  return (
+    <Puck>
+      <Drawer>
+        <Drawer.Item name="Orange" />
+      </Drawer>
+    </Puck>
+  );
+}
+```
+
+## Props
+
+| Param                   | Example                     | Type      | Status   |
+| ----------------------- | --------------------------- | --------- | -------- |
+| [`children`](#children) | `children: <Drawer.Item />` | ReactNode | Required |
+
+## Required props
+
+### `children`
+
+A React node representing the contents of the `<Drawer>`. Will likely contain [`<Drawer.Item>`](drawer-item) nodes.

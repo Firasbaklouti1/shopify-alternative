@@ -1,5 +1,5 @@
 import { getPageLayout, getProduct } from '@/lib/api';
-import LayoutRenderer from '@/components/LayoutRenderer';
+import PuckRenderer from '@/components/PuckRenderer';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
@@ -33,15 +33,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const { slug, productSlug } = await params;
 
   try {
-    // Fetch layout and product data in parallel
     const [layout, product] = await Promise.all([
       getPageLayout(slug, 'product'),
       getProduct(slug, productSlug),
     ]);
 
     return (
-      <LayoutRenderer
-        layout={layout}
+      <PuckRenderer
+        data={layout}
         storeSlug={slug}
         product={product}
       />

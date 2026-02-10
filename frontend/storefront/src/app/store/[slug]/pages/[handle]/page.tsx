@@ -1,6 +1,6 @@
 import { getCustomPageLayout } from '@/lib/api';
 import { notFound } from 'next/navigation';
-import LayoutRenderer from '@/components/LayoutRenderer';
+import PuckRenderer from '@/components/PuckRenderer';
 import type { Metadata } from 'next';
 
 interface CustomPageProps {
@@ -10,18 +10,11 @@ interface CustomPageProps {
 export async function generateMetadata({
   params
 }: CustomPageProps): Promise<Metadata> {
-  const { slug, handle } = await params;
+  const { handle } = await params;
 
-  try {
-    const layout = await getCustomPageLayout(slug, handle);
-    return {
-      title: layout.name || handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-    };
-  } catch {
-    return {
-      title: handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-    };
-  }
+  return {
+    title: handle.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+  };
 }
 
 export default async function CustomPage({ params }: CustomPageProps) {
@@ -32,10 +25,9 @@ export default async function CustomPage({ params }: CustomPageProps) {
 
     return (
       <div className="min-h-screen">
-        <LayoutRenderer
-          layout={layout}
+        <PuckRenderer
+          data={layout}
           storeSlug={slug}
-          pageType="custom"
         />
       </div>
     );

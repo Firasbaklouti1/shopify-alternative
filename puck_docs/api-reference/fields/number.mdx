@@ -1,0 +1,212 @@
+import { ConfigPreview } from "@/docs/components/Preview";
+
+# Number
+
+Render a `number` input. Extends [Base](base).
+
+<ConfigPreview
+  label="Example"
+  componentConfig={{
+    fields: {
+      myNumber: {
+        type: "number",
+      },
+    },
+    defaultProps: { myNumber: 5 },
+    render: ({ myNumber }) => {
+      return <div>{myNumber}</div>;
+    },
+  }}
+/>
+
+```tsx {5-7} copy
+const config = {
+  components: {
+    Example: {
+      fields: {
+        myNumber: {
+          type: "number",
+        },
+      },
+      render: ({ myNumber }) => {
+        return <div>{myNumber}</div>;
+      },
+    },
+  },
+};
+```
+
+## Params
+
+| Param                         | Example                         | Type     | Status   |
+| ----------------------------- | ------------------------------- | -------- | -------- |
+| [`type`](#type)               | `type: "number"`                | "number" | Required |
+| [`max`](#max)                 | `max: 10`                       | number   | -        |
+| [`min`](#min)                 | `min: 0`                        | number   | -        |
+| [`placeholder`](#placeholder) | `placeholder: "Lorem ipsum..."` | String   | -        |
+
+## Required params
+
+### `type`
+
+The type of the field. Must be `"number"` for Number fields.
+
+```tsx {6} copy
+const config = {
+  components: {
+    Example: {
+      fields: {
+        myNumber: {
+          type: "number",
+        },
+      },
+      // ...
+    },
+  },
+};
+```
+
+## Optional params
+
+### `max`
+
+The maximum numeric value allowed.
+
+```tsx {7} copy
+const config = {
+  components: {
+    Example: {
+      fields: {
+        myNumber: {
+          type: "number",
+          max: 10,
+        },
+      },
+      // ...
+    },
+  },
+};
+```
+
+<ConfigPreview
+  label="Example"
+  componentConfig={{
+    fields: {
+      myNumber: {
+        type: "number",
+        max: 10,
+      },
+    },
+    defaultProps: { myNumber: 5 },
+    render: ({ myNumber }) => {
+      return <div>{myNumber}</div>;
+    },
+  }}
+/>
+
+### `min`
+
+The minimum numeric value allowed.
+
+```tsx {7} copy
+const config = {
+  components: {
+    Example: {
+      fields: {
+        myNumber: {
+          type: "number",
+          min: 0,
+        },
+      },
+      // ...
+    },
+  },
+};
+```
+
+<ConfigPreview
+  label="Example"
+  componentConfig={{
+    fields: {
+      myNumber: {
+        type: "number",
+        min: 0,
+      },
+    },
+    defaultProps: { myNumber: 5 },
+    render: ({ myNumber }) => {
+      return <div>{myNumber}</div>;
+    },
+  }}
+/>
+
+### Placeholder
+
+The placeholder text to display when the field is empty.
+
+```tsx {7} copy
+const config = {
+  components: {
+    Example: {
+      fields: {
+        myNumber: {
+          type: "number",
+          placeholder: "Lorem ipsum...",
+        },
+      },
+      // ...
+    },
+  },
+};
+```
+
+<ConfigPreview
+  label="Example"
+  componentConfig={{
+    fields: {
+      myNumber: {
+        type: "number",
+        placeholder: "Lorem ipsum...",
+      },
+    },
+    render: ({ myNumber }) => {
+      return <div>{myNumber}</div>;
+    },
+  }}
+/>
+
+### `step`
+
+The stepping interval when interacting with the field.
+
+```tsx {7} copy
+const config = {
+  components: {
+    Example: {
+      fields: {
+        myNumber: {
+          type: "number",
+          step: 0.1,
+        },
+      },
+      // ...
+    },
+  },
+};
+```
+
+<ConfigPreview
+  label="Example"
+  componentConfig={{
+    fields: {
+      myNumber: {
+        type: "number",
+        step: 0.1,
+      },
+    },
+    defaultProps: { myNumber: 5 },
+    render: ({ myNumber }) => {
+      return <div>{myNumber}</div>;
+    },
+  }}
+/>

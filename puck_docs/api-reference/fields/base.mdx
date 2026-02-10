@@ -1,0 +1,96 @@
+# Base
+
+The base type shared by all fields.
+
+## Params
+
+| Param                     | Example               | Type      | Status |
+| ------------------------- | --------------------- | --------- | ------ |
+| [`label`](#label)         | `label: "Title"`      | String    | -      |
+| [`labelIcon`](#labelicon) | `labelIcon: <Icon />` | ReactNode | -      |
+| [`metadata`](#metadata)   | `metadata: {}`        | Object    | -      |
+| [`visible`](#visible)     | `visible: false`      | Boolean   | -      |
+
+## Optional params
+
+### `label`
+
+Set the label for the input. Puck will use the key if not provided.
+
+```tsx {6} copy
+const config = {
+  components: {
+    Example: {
+      fields: {
+        items: {
+          label: "My Field",
+          // ...
+        },
+      },
+      // ...
+    },
+  },
+};
+```
+
+### `labelIcon`
+
+Set an icon to display next to the label.
+
+```tsx {6} copy
+const config = {
+  components: {
+    Example: {
+      fields: {
+        items: {
+          labelIcon: <Icon />,
+          // ...
+        },
+      },
+      // ...
+    },
+  },
+};
+```
+
+### `metadata`
+
+An object containing additional information for the field.
+
+```tsx {6-8} copy
+const config = {
+  components: {
+    Example: {
+      fields: {
+        items: {
+          metadata: {
+            title: "Hello, world",
+          },
+          // ...
+        },
+      },
+      // ...
+    },
+  },
+};
+```
+
+### `visible`
+
+Show or hide the field. Defaults to `true`.
+
+```tsx {6-8} copy
+const config = {
+  components: {
+    Example: {
+      fields: {
+        items: {
+          visible: false,
+          // ...
+        },
+      },
+      // ...
+    },
+  },
+};
+```

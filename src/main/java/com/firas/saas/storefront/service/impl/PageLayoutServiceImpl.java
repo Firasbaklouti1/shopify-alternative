@@ -311,19 +311,22 @@ public class PageLayoutServiceImpl implements PageLayoutService {
     }
 
     private Map<String, Object> createDefaultCustomPageLayout() {
-        Map<String, Object> sections = new LinkedHashMap<>();
-        sections.put("rich-text-1", Map.of(
-                "type", "rich-text",
-                "settings", Map.of(
-                        "heading", "Page Title",
-                        "content", "Add your content here...",
-                        "text_alignment", "center"
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("content", List.of(
+                Map.of(
+                        "type", "RichText",
+                        "props", Map.of(
+                                "id", "RichText-1",
+                                "heading", "Page Title",
+                                "content", "Add your content here...",
+                                "text_alignment", "center",
+                                "max_width", "medium",
+                                "padding", "medium"
+                        )
                 )
         ));
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("sections", sections);
-        result.put("order", List.of("rich-text-1"));
+        result.put("root", Map.of("props", Map.of("title", "Custom Page")));
+        result.put("zones", Map.of());
         return result;
     }
 
@@ -346,135 +349,147 @@ public class PageLayoutServiceImpl implements PageLayoutService {
     }
 
     private Map<String, Object> createDefaultHomeLayout() {
-        Map<String, Object> sections = new LinkedHashMap<>();
-
-        sections.put("hero-1", Map.of(
-                "type", "hero-banner",
-                "settings", Map.of(
-                        "title", "Welcome to Our Store",
-                        "subtitle", "Discover amazing products",
-                        "bg_image", "",
-                        "cta_text", "Shop Now",
-                        "cta_link", "/collections/all",
-                        "overlay_opacity", 0.4,
-                        "height", "large"
-                )
-        ));
-
-        sections.put("featured-products", Map.of(
-                "type", "product-grid",
-                "settings", Map.of(
-                        "title", "Featured Products",
-                        "collection_handle", "",
-                        "limit", 8,
-                        "columns", 4,
-                        "show_price", true,
-                        "show_vendor", false
-                )
-        ));
-
-        sections.put("newsletter-1", Map.of(
-                "type", "newsletter",
-                "settings", Map.of(
-                        "heading", "Subscribe to our newsletter",
-                        "subheading", "Get the latest updates and offers",
-                        "button_text", "Subscribe"
-                )
-        ));
-
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("sections", sections);
-        result.put("order", List.of("hero-1", "featured-products", "newsletter-1"));
+        result.put("content", List.of(
+                Map.of(
+                        "type", "HeroBanner",
+                        "props", Map.of(
+                                "id", "HeroBanner-1",
+                                "title", "Welcome to Our Store",
+                                "subtitle", "Discover amazing products",
+                                "bg_image", "",
+                                "cta_text", "Shop Now",
+                                "cta_link", "/collections/all",
+                                "overlay_opacity", 0.4,
+                                "text_color", "light",
+                                "text_alignment", "center",
+                                "height", "large"
+                        )
+                ),
+                Map.of(
+                        "type", "ProductGrid",
+                        "props", Map.of(
+                                "id", "ProductGrid-1",
+                                "title", "Featured Products",
+                                "collection_handle", "",
+                                "limit", 8,
+                                "columns", 4,
+                                "show_price", true,
+                                "show_vendor", false,
+                                "show_sale_badge", true,
+                                "image_ratio", "square"
+                        )
+                ),
+                Map.of(
+                        "type", "Newsletter",
+                        "props", Map.of(
+                                "id", "Newsletter-1",
+                                "title", "Subscribe to our newsletter",
+                                "subtitle", "Get the latest updates and offers",
+                                "button_text", "Subscribe",
+                                "text_alignment", "center",
+                                "layout", "inline"
+                        )
+                )
+        ));
+        result.put("root", Map.of("props", Map.of("title", "Home Page")));
+        result.put("zones", Map.of());
         return result;
     }
 
     private Map<String, Object> createDefaultProductLayout() {
-        Map<String, Object> blocks = new LinkedHashMap<>();
-        blocks.put("title", Map.of("type", "title", "order", 0));
-        blocks.put("price", Map.of("type", "price", "order", 1, "settings", Map.of("show_compare_price", true)));
-        blocks.put("variant_selector", Map.of("type", "variant_selector", "order", 2, "settings", Map.of("picker_type", "dropdown")));
-        blocks.put("quantity", Map.of("type", "quantity_selector", "order", 3));
-        blocks.put("buy_buttons", Map.of("type", "buy_buttons", "order", 4, "settings", Map.of("show_buy_now", true)));
-        blocks.put("description", Map.of("type", "description", "order", 5));
-
-        Map<String, Object> sections = new LinkedHashMap<>();
-        sections.put("product-main", Map.of(
-                "type", "product-main",
-                "settings", Map.of(
-                        "gallery_position", "left",
-                        "enable_zoom", true,
-                        "show_vendor", true
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("content", List.of(
+                Map.of(
+                        "type", "ProductMain",
+                        "props", Map.of(
+                                "id", "ProductMain-1",
+                                "gallery_position", "left",
+                                "show_vendor", true,
+                                "show_sku", false,
+                                "show_quantity_selector", true
+                        )
                 ),
-                "blocks", blocks,
-                "block_order", List.of("title", "price", "variant_selector", "quantity", "buy_buttons", "description")
-        ));
-
-        sections.put("related-products", Map.of(
-                "type", "product-grid",
-                "settings", Map.of(
-                        "title", "You May Also Like",
-                        "limit", 4,
-                        "columns", 4
+                Map.of(
+                        "type", "ProductGrid",
+                        "props", Map.of(
+                                "id", "ProductGrid-related",
+                                "title", "You May Also Like",
+                                "limit", 4,
+                                "columns", 4,
+                                "show_price", true,
+                                "show_sale_badge", true,
+                                "image_ratio", "square"
+                        )
                 )
         ));
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("sections", sections);
-        result.put("order", List.of("product-main", "related-products"));
+        result.put("root", Map.of("props", Map.of("title", "Product Page")));
+        result.put("zones", Map.of());
         return result;
     }
 
     private Map<String, Object> createDefaultCollectionLayout() {
-        Map<String, Object> sections = new LinkedHashMap<>();
-
-        sections.put("collection-header", Map.of(
-                "type", "rich-text",
-                "settings", Map.of(
-                        "heading", "{{collection.title}}",
-                        "content", "{{collection.description}}",
-                        "text_alignment", "center"
-                )
-        ));
-
-        sections.put("collection-products", Map.of(
-                "type", "product-grid",
-                "settings", Map.of(
-                        "collection_handle", "{{collection.handle}}",
-                        "limit", 24,
-                        "columns", 4,
-                        "show_price", true
-                )
-        ));
-
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("sections", sections);
-        result.put("order", List.of("collection-header", "collection-products"));
+        result.put("content", List.of(
+                Map.of(
+                        "type", "CollectionFilters",
+                        "props", Map.of(
+                                "id", "CollectionFilters-1",
+                                "show_sort", true,
+                                "show_filter", false,
+                                "filter_type", "dropdown"
+                        )
+                ),
+                Map.of(
+                        "type", "ProductGrid",
+                        "props", Map.of(
+                                "id", "ProductGrid-collection",
+                                "limit", 24,
+                                "columns", 4,
+                                "show_price", true,
+                                "show_sale_badge", true,
+                                "image_ratio", "square"
+                        )
+                )
+        ));
+        result.put("root", Map.of("props", Map.of("title", "Collection Page")));
+        result.put("zones", Map.of());
         return result;
     }
 
     private Map<String, Object> createDefaultCartLayout() {
-        Map<String, Object> sections = new LinkedHashMap<>();
-        sections.put("cart-main", Map.of(
-                "type", "cart-main",
-                "settings", Map.of()
-        ));
-
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("sections", sections);
-        result.put("order", List.of("cart-main"));
+        result.put("content", List.of(
+                Map.of(
+                        "type", "RichText",
+                        "props", Map.of(
+                                "id", "RichText-cart",
+                                "heading", "Your Cart",
+                                "text_alignment", "center",
+                                "padding", "medium"
+                        )
+                )
+        ));
+        result.put("root", Map.of("props", Map.of("title", "Cart")));
+        result.put("zones", Map.of());
         return result;
     }
 
     private Map<String, Object> createDefaultCheckoutLayout() {
-        Map<String, Object> sections = new LinkedHashMap<>();
-        sections.put("checkout-main", Map.of(
-                "type", "checkout-main",
-                "settings", Map.of()
-        ));
-
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("sections", sections);
-        result.put("order", List.of("checkout-main"));
+        result.put("content", List.of(
+                Map.of(
+                        "type", "RichText",
+                        "props", Map.of(
+                                "id", "RichText-checkout",
+                                "heading", "Checkout",
+                                "text_alignment", "center",
+                                "padding", "medium"
+                        )
+                )
+        ));
+        result.put("root", Map.of("props", Map.of("title", "Checkout")));
+        result.put("zones", Map.of());
         return result;
     }
 
