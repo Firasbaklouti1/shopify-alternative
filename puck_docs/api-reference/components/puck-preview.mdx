@@ -1,0 +1,64 @@
+---
+title: <Puck.Preview>
+---
+
+import { PuckPreview } from "@/docs/components/Preview";
+import { Puck } from "@/puck";
+
+# \<Puck.Preview\>
+
+Render a drag-and-drop preview for the current data when composing a custom Puck UI.
+
+<PuckPreview
+  config={{
+    components: {
+      HeadingBlock: {
+        fields: {title: {type: 'text'}},
+        render: ({title}) => <div>{title}</div>
+      }
+    }
+  }}
+  data={{
+    root: { props: {} },
+    content: [{ type: "HeadingBlock", props: { id: "HeadingBlock-123", title: 'Hello, world' } }],
+  }}
+>
+
+  <Puck.Preview />
+</PuckPreview>
+
+```tsx {17} showLineNumbers copy
+import { Puck } from "@puckeditor/core";
+
+export function Editor() {
+  return (
+    <Puck>
+      <Puck.Preview />
+    </Puck>
+  );
+}
+```
+
+## Props
+
+| Param       | Example                    | Type   | Status |
+| ----------- | -------------------------- | ------ | ------ |
+| [`id`](#id) | `id: "my-preview-content"` | String | -      |
+
+## Optional props
+
+### `id`
+
+A unique identifier for the preview frame. Default: `puck-preview`.
+
+```tsx {6} copy
+import { Puck } from "@puckeditor/core";
+
+export function Editor() {
+  return (
+    <Puck>
+      <Puck.Preview id="my-frame" />
+    </Puck>
+  );
+}
+```

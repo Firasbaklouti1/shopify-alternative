@@ -1,0 +1,28 @@
+---
+title: headerActions
+---
+
+# headerActions
+
+Override the header actions. Return a fragment so your items appear inline.
+
+```tsx copy
+const overrides = {
+  headerActions: ({ children }) => (
+    <>
+      {children}
+      <button>Click me</button>
+    </>
+  ),
+};
+```
+
+## Props
+
+| Prop                    | Example   | Type      |
+| ----------------------- | --------- | --------- |
+| [`children`](#children) | `<div />` | ReactNode |
+
+### `children`
+
+The default node for the header actions, which includes the default publish button.

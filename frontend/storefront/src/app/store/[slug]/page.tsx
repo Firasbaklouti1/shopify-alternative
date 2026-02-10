@@ -1,5 +1,5 @@
 import { getPageLayout, getProducts, getCollections } from '@/lib/api';
-import LayoutRenderer from '@/components/LayoutRenderer';
+import PuckRenderer from '@/components/PuckRenderer';
 import { notFound } from 'next/navigation';
 
 interface HomePageProps {
@@ -10,7 +10,6 @@ export default async function HomePage({ params }: HomePageProps) {
   const { slug } = await params;
 
   try {
-    // Fetch layout and data in parallel
     const [layout, productsData, collections] = await Promise.all([
       getPageLayout(slug, 'home'),
       getProducts(slug, { limit: 24 }),
@@ -18,8 +17,8 @@ export default async function HomePage({ params }: HomePageProps) {
     ]);
 
     return (
-      <LayoutRenderer
-        layout={layout}
+      <PuckRenderer
+        data={layout}
         storeSlug={slug}
         products={productsData.products}
         collections={collections}

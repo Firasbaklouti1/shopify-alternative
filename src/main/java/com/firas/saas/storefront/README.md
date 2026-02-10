@@ -1,80 +1,116 @@
 ````# Storefront Module
 
-This module implements the **JSON-Driven Storefront** system, enabling merchants to create customizable websites for their stores using a drag-and-drop editor without writing code.
+This module implements the **JSON-Driven Storefront** system, enabling merchants to create customizable websites for their stores using the **Puck visual editor** (`@measured/puck` v0.20.2) without writing code.
 
 ## Architecture
 
-The storefront follows the **Server-Driven UI** pattern (similar to Shopify Online Store 2.0):
+The storefront follows the **Server-Driven UI** pattern with Puck as the visual editor:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    MERCHANT ADMIN                                │
-│  ┌─────────────────┐  postMessage  ┌─────────────────────────┐  │
-│  │ Editor Sidebar  │◄─────────────►│ Storefront (iframe)     │  │
-│  └─────────────────┘               └─────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
+│              MERCHANT ADMIN (frontend/admin, port 3001)          │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  Puck Editor: <Puck config={} data={} metadata={} />   │    │
+│  │  - Drag & drop sections from categorized sidebar        │    │
+│  │  - Field editing panel for component properties          │    │
+│  │  - Viewport preview (Mobile / Tablet / Desktop)          │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│       │ Save Draft (PUT)          │ Publish (POST)              │
+└───────┼───────────────────────────┼─────────────────────────────┘
+        ▼                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SPRING BOOT API                               │
-│  ┌─────────────────────┐     ┌─────────────────────┐            │
-│  │ Public Storefront   │     │ Layout Editor API   │            │
-│  │ /api/v1/storefront  │     │ /api/v1/stores      │            │
-│  │ (No Auth)           │     │ (MERCHANT Role)     │            │
-│  └─────────────────────┘     └─────────────────────┘            │
+│                    SPRING BOOT API (port 8080)                   │
+│  ┌──────────────────────┐     ┌──────────────────────┐          │
+│  │ Public Storefront     │     │ Layout Editor API    │          │
+│  │ /api/v1/storefront    │     │ /api/v1/stores       │          │
+│  │ (No Auth)             │     │ (MERCHANT Role)      │          │
+│  └──────────────────────┘     └──────────────────────┘          │
+│  Stores Puck JSON as Map<String,Object> in TEXT columns          │
 └─────────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
+        │
+        ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    NEXT.JS STOREFRONT                            │
-│  Fetches JSON layout → Maps to React components → Renders HTML  │
+│              STOREFRONT (frontend/storefront, port 3000)         │
+│  <Render config={puckConfig} data={layout} metadata={...} />    │
+│  Same shared components as editor → WYSIWYG consistency          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Key Concepts
 
-### JSON Layout Configuration
+### Puck Layout Format
 
-Store layouts are defined as JSON, not HTML. Example:
+Store layouts are stored as Puck-format JSON (replaced the old `{sections, order}` format in Phase 3):
 
 ```json
 {
-  "sections": {
-    "hero-1": {
-      "type": "hero-banner",
-      "settings": {
+  "content": [
+    {
+      "type": "HeroBanner",
+      "props": {
+        "id": "HeroBanner-1",
         "title": "Welcome to Our Store",
         "bg_image": "/uploads/hero.jpg",
-        "cta_text": "Shop Now"
+        "cta_text": "Shop Now",
+        "overlay_opacity": 0.4,
+        "height": "large"
       }
     },
-    "featured-products": {
-      "type": "product-grid",
-      "settings": {
+    {
+      "type": "ProductGrid",
+      "props": {
+        "id": "ProductGrid-1",
         "title": "Featured Products",
         "limit": 8,
         "columns": 4
       }
     }
-  },
-  "order": ["hero-1", "featured-products"]
+  ],
+  "root": { "props": { "title": "Home Page" } },
+  "zones": {}
 }
 ```
 
+> **Legacy format** (`{sections, order}`) from Phase 2 is auto-converted by the frontend via `convertLegacyToPuck()` in `frontend/shared/lib/puck-utils.ts`.
+
 ### Component Registry
 
-Available section types are defined in `ComponentRegistry.java`:
-- `hero-banner` - Large banner with CTA
-- `product-grid` - Grid of products
-- `product-main` - Product detail (for product pages)
-- `collection-list` - Grid of categories
-- `rich-text` - Custom text content
-- `image-with-text` - Side-by-side image and text
-- `newsletter` - Email signup
-- `testimonials` - Customer reviews
-- `announcement-bar` - Top promotional banner
-- `footer` - Site footer
-- `app-block` - Third-party app components
+Available section types defined in `ComponentRegistry.java` (PascalCase keys for Puck compatibility):
+- `HeroBanner` - Large banner with CTA
+- `ProductGrid` - Grid of products
+- `ProductMain` - Product detail (for product pages)
+- `CollectionList` - Grid of categories
+- `CollectionFilters` - Sort/filter controls
+- `RichText` - Custom text content
+- `ImageWithText` - Side-by-side image and text
+- `Newsletter` - Email signup
+- `Testimonials` - Customer reviews
+- `AnnouncementBar` - Top promotional banner
+- `Footer` - Site footer
+- `AppBlock` - Third-party app components
+
+### Layout Data Flow
+
+```
+Editor Save:
+  Puck <Puck> → onChange → PUT /api/v1/stores/layouts/{type}
+    Request body: { "layoutJson": { content, root, zones }, "name": "..." }
+    Backend stores request.getLayoutJson() in layout.draftJson
+
+Editor Publish:
+  POST /api/v1/stores/layouts/{type}/publish
+    Backend copies draftJson → layoutJson, clears draftJson, sets published=true
+
+Storefront Load:
+  GET /api/v1/storefront/{slug}/layout?page={type}
+    Backend returns layout.getLayoutJson() directly (raw Puck JSON)
+    Frontend passes to <Render config={puckConfig} data={layout} />
+
+Editor Load Draft:
+  GET /api/v1/stores/layouts/{type}/draft
+    Backend returns draftJson ?? layoutJson directly (raw Puck JSON)
+    Editor validates and restores into <Puck data={...} />
+```
 
 ## Entities
 
@@ -90,8 +126,8 @@ Per-tenant store configuration:
 ### PageLayout
 Page-specific layout configuration:
 - `pageType` - HOME, PRODUCT, COLLECTION, CART, CHECKOUT, CUSTOM
-- `layoutJson` - Published layout (JSON)
-- `draftJson` - Unpublished changes (JSON)
+- `layoutJson` - Published layout (Puck-format JSON)
+- `draftJson` - Unpublished changes (Puck-format JSON)
 - `handle` - URL slug for custom pages
 
 ### Theme
@@ -110,17 +146,17 @@ Version history for rollback:
 
 ### Public Storefront API (`/api/v1/storefront/{slug}`)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/settings` | Store settings (branding, theme) |
-| GET | `/layout?page={type}` | Page layout JSON |
-| GET | `/pages/{handle}` | Custom page layout |
-| GET | `/products` | Product listing |
-| GET | `/products/{slug}` | Single product |
-| GET | `/collections` | Category listing |
-| GET | `/collections/{slug}` | Single category |
-| GET | `/themes` | Available themes |
-| GET | `/schema/components` | Component registry |
+| Method | Endpoint | Description | Response |
+|--------|----------|-------------|----------|
+| GET | `/settings` | Store settings (branding, theme) | StoreSettings JSON |
+| GET | `/layout?page={type}` | Page layout JSON | Raw Puck data `{content, root, zones}` |
+| GET | `/pages/{handle}` | Custom page layout | Raw Puck data |
+| GET | `/products` | Product listing with pagination | `{products, totalPages, ...}` |
+| GET | `/products/{slug}` | Single product | Product JSON |
+| GET | `/collections` | Category listing | Collection[] |
+| GET | `/collections/{slug}` | Single category with products | Collection JSON |
+| GET | `/themes` | Available themes | Theme[] |
+| GET | `/schema/components` | Component registry | ComponentSchema[] |
 
 ### Merchant Layout Editor API (`/api/v1/stores`)
 
@@ -132,8 +168,9 @@ Version history for rollback:
 | POST | `/unpublish` | Unpublish store | MERCHANT |
 | GET | `/layouts` | List all page layouts | MERCHANT, STAFF |
 | GET | `/layouts/{pageType}` | Get specific layout | MERCHANT, STAFF |
-| PUT | `/layouts/{pageType}` | Update layout (draft) | MERCHANT |
-| POST | `/layouts/{pageType}/publish` | Publish layout | MERCHANT |
+| GET | `/layouts/{pageType}/draft` | Get draft (or published fallback) | MERCHANT, STAFF |
+| PUT | `/layouts/{pageType}` | Update layout (saves to draftJson) | MERCHANT |
+| POST | `/layouts/{pageType}/publish` | Publish: draftJson → layoutJson | MERCHANT |
 | DELETE | `/layouts/{pageType}/draft` | Discard draft | MERCHANT |
 | POST | `/layouts/{pageType}/rollback/{version}` | Rollback to version | MERCHANT |
 | POST | `/pages` | Create custom page | MERCHANT |
@@ -198,10 +235,24 @@ Merchants can configure checkout behavior:
 | `ACCOUNT_ONLY` | Customers must create/login to account |
 | `BOTH` | Customers choose guest or account checkout |
 
+## Frontend Apps
+
+| App | Port | Purpose |
+|-----|------|---------|
+| `frontend/admin/` | 3001 | Puck visual editor for merchants |
+| `frontend/storefront/` | 3000 | Public storefront using Puck `<Render>` |
+| `frontend/shared/` | N/A | Shared components, puck-config, API client |
+
+## Completed Phases
+
+1. **Phase 1: Backend Foundation** - Entities, APIs, Component Registry
+2. **Phase 2: Next.js Storefront** - Layout rendering, 12 section components, cart/checkout
+3. **Phase 3: Puck Visual Editor** - Admin app, Puck editor, shared component lib, legacy conversion
+
 ## Next Steps
 
-1. **Next.js Storefront** - Build the renderer that consumes this API
-2. **Visual Editor** - Build iframe + postMessage editor UI
-3. **App Blocks** - Integrate Web Components for third-party apps
-4. **AI Generation** - Implement LLM-based layout generation
+1. **AI Generation** - Implement LLM-based layout generation (`POST /layouts/generate`)
+2. **Version Control** - Add `PageLayoutVersion` for undo/rollback UI
+3. **Custom Domains** - DNS configuration, SSL provisioning
+4. **Performance** - CDN, image optimization, caching strategy
 ````
